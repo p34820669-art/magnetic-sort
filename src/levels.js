@@ -1,4 +1,4 @@
-// Strings are bottom -> top. Empty strings are the two free containers.
+// Strings run bottom -> top. Optional locks name the collection color that opens each jar.
 export const LEVELS = [
   { name: 'Первый сбор', lesson: 'gather', tubes: ['AABB', 'AABB', '', ''],
     tip: 'Нажми на △. Все открытые треугольники соберутся сами. Четыре одинаковых — готово!' },
@@ -11,7 +11,16 @@ export const LEVELS = [
   { name: 'Береги место', lesson: 'space', tubes: ['ABCA', 'CBBA', 'ACBC', '', ''],
     tip: 'Попробуй начать с ○. Затем ищи ход, который откроет одноцветный приёмник.' },
   { name: 'Порядок важен', lesson: 'challenge', tubes: ['BDCA', 'CDAA', 'CDBB', 'ADBC', '', ''],
-    tip: 'Четыре цвета, два пустых места. Планируй следующий сбор. Ошибку можно отменить.' }
+    tip: 'Четыре цвета, два пустых места. Планируй следующий сбор. Ошибку можно отменить.' },
+  { name: 'Цветной замок', lesson: 'lock', tubes: ['AABB', 'BB', 'AA', ''],
+    locks: [null, null, 'B', null],
+    tip: 'Собери четыре △ — коралловый замок откроется. Закрытая банка пока не отдаёт и не принимает конфеты.' },
+  { name: 'Что открыть первым?', lesson: 'lock-choice', tubes: ['AA', 'BB', 'AA', 'BB', 'CDCD', 'CCDD'],
+    locks: [null, null, null, null, 'A', 'B'],
+    tip: 'Сбор ○ откроет мятный замок, сбор △ — коралловый. Посмотри на конфеты внутри и выбери порядок.' },
+  { name: 'Цепочка открытий', lesson: 'lock-chain', tubes: ['AABB', 'BB', 'AACC', 'CCDD', 'DD', ''],
+    locks: [null, null, 'B', 'A', 'C', null],
+    tip: 'Начни с △. Смотри, какие конфеты откроются за каждым замком: они помогут снять следующий.' }
 ];
 
 export const COLORS = {

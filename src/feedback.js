@@ -1,4 +1,4 @@
-import { COLORS } from './levels.js?v=0.9.0';
+import { COLORS } from './levels.js?v=0.10.0';
 
 // Presentation only. The resolver owns all moves; feedback never changes puzzle state.
 export class SortFeedback {
@@ -221,6 +221,27 @@ export class SortFeedback {
       await this.animate(glint, { scale: 1.25, alpha: 0, duration: 240, ease: 'Cubic.easeOut' });
       this.remove(glint);
     }
+  }
+  async unlock(move) {
+    this.phase = 'unlock';
+    const scene = this.scene, color = COLORS[move.color].fill;
+    scene.playSound('pickup', { rate: 1.5, volume: .45 });
+    await Promise.all(move.unlocked.map(async index => {
+      const lock = scene.lockViews.get(index);
+      if (!lock) return;
+      const { x, top, scale: s } = scene.layout[index];
+      if (!this.gentle) {
+        const glow = this.own(scene.add.graphics().setDepth(7).setName('unlock-glow'));
+        scene.jarOutline(glow, x, top, s, color, 4, .9);
+        this.fade(glow, 400);
+        await this.animate(lock.getByName('shackle'), { y: -7, x: 3, angle: 15, duration: 130, ease: 'Sine.easeOut' });
+      }
+      const candies = [...scene.balls].filter(([key]) => key.startsWith(`${index}:`)).map(([, ball]) => ball);
+      await Promise.all([
+        this.animate(lock, { alpha: 0, ...(this.gentle ? {} : { y: top - 12 * s }), duration: 230, ease: 'Sine.easeOut' }),
+        candies.length ? this.animate(candies, { alpha: 1, duration: 230, ease: 'Sine.easeOut' }) : Promise.resolve()
+      ]);
+    }));
   }
   finish() {
     this.lastDuration = Math.round(performance.now() - this.started);
