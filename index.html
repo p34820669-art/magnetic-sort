@@ -6,16 +6,15 @@
   <meta name="theme-color" content="#fbf1e8">
   <title>Магнитная сортировка</title>
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./style.css?v=0.7.0">
+  <link rel="stylesheet" href="./style.css?v=0.8.0">
   <script defer src="./vendor/phaser.min.js"></script>
-  <script type="module" src="./src/main.js?v=0.7.0"></script>
+  <script type="module" src="./src/main.js?v=0.8.0"></script>
 </head>
 <body>
   <main class="game-shell">
     <section class="game-card" aria-label="Игра">
       <header class="hud">
         <div class="level-heading"><span>Уровень</span><strong id="level-label">1 / 6</strong></div>
-        <div class="progress-row"><span id="progress" class="sr-only">0 / 2</span><div id="color-progress" aria-label="Цветовые партии"></div></div>
         <div class="toolbar">
           <button id="help" class="icon-button" aria-label="Как играть" aria-haspopup="dialog">?</button>
           <button id="menu" class="icon-button" aria-label="Меню игры" aria-haspopup="dialog"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
@@ -51,7 +50,7 @@
         <select id="motion"><option value="auto">Как на устройстве</option><option value="full">Полная</option><option value="gentle">Мягкая</option></select>
       </label>
       <p id="motion-note" class="menu-help"></p>
-      <p class="shortcuts">1–6 — стопка · Z — отменить · R — заново · v0.7.0</p>
+      <p class="shortcuts">1–6 — стопка · Z — отменить · R — заново · v0.8.0</p>
     </dialog>
     <dialog id="help-dialog" aria-labelledby="level-name">
       <div class="dialog-heading"><h2 id="level-name">Первый сбор</h2><button id="close-help" class="icon-button" aria-label="Закрыть помощь">✕</button></div>

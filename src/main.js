@@ -1,9 +1,9 @@
-import { PuzzleSession, planMove, status } from './model.js?v=0.7.0';
-import { LEVELS, COLORS } from './levels.js?v=0.7.0';
-import { SortFeedback } from './feedback.js?v=0.7.0';
+import { PuzzleSession, planMove, status } from './model.js?v=0.8.0';
+import { LEVELS, COLORS } from './levels.js?v=0.8.0';
+import { SortFeedback } from './feedback.js?v=0.8.0';
 
-const ui = Object.fromEntries(['level-label', 'level-name', 'levels', 'tip', 'progress',
-  'color-progress', 'status-panel', 'next', 'message', 'undo', 'restart', 'sound', 'menu',
+const ui = Object.fromEntries(['level-label', 'level-name', 'levels', 'tip',
+  'status-panel', 'next', 'message', 'undo', 'restart', 'sound', 'menu',
   'level-dialog', 'close-menu', 'help', 'help-dialog', 'close-help', 'dismiss-notice', 'motion', 'motion-note', 'victory', 'victory-title', 'victory-detail', 'candy-box'].map(id => [id, document.getElementById(id)]));
 // Phaser 4.2.1 has no GameConfig.resolution: render a denser canvas, keep logical coordinates.
 const renderDensity = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
@@ -11,7 +11,7 @@ const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
 const lessons = {
   gather: 'Нажми на △. Четыре одинаковых конфеты — готово!',
   partial: 'Собери △. Спрятанные конфеты пока останутся.',
-  receiver: 'Нажми △ в № 2. Магнит отмечает приёмник.',
+  receiver: 'Нажми на банку со стрелкой. Магнит — приёмник.',
   practice: 'Открывай спрятанные цвета, собирая верхние.',
   space: 'Оставляй место для сбора. Ошибку можно отменить.',
   challenge: 'Выбирай порядок цветов и собери всё поле.'
@@ -57,12 +57,10 @@ class SortScene extends Phaser.Scene {
     this.pressed = null;
     this.previewMove = null;
     this.audioPlays = { pickup: 0, complete: 0, land: 0, win: 0 };
-    this.fillLabels = new Map();
-    this.emptyLabels = new Map();
   }
   preload() {
-    for (const { texture } of Object.values(COLORS)) if (texture) this.load.image(texture, `./assets/${texture}.png?v=0.7.0`);
-    for (const key of ['pickup', 'complete', 'land', 'win']) this.load.audio(key, `./assets/${key}.wav?v=0.7.0`);
+    for (const { texture } of Object.values(COLORS)) if (texture) this.load.image(texture, `./assets/${texture}.png?v=0.8.0`);
+    for (const key of ['pickup', 'complete', 'land', 'win']) this.load.audio(key, `./assets/${key}.wav?v=0.8.0`);
   }
   create() {
     this.cameras.main.setOrigin(0, 0).setZoom(renderDensity);
@@ -143,13 +141,13 @@ class SortScene extends Phaser.Scene {
     // Read-only diagnostics, available only to local QA. No game-state setters.
     if (new URLSearchParams(location.search).has('qa')) {
       window.__sortQA = { snapshot: () => ({
-        version: '0.7.0', state: structuredClone(this.session.state), busy: this.busy, level: this.levelIndex,
+        version: '0.8.0', state: structuredClone(this.session.state), busy: this.busy, level: this.levelIndex,
         inputEnabled: this.input.enabled,
         status: status(this.session.state), history: this.session.history.length,
         renderer: this.game.renderer.type, receivers: receivers(this.session.state),
         preview: this.previewMove ? { ...this.previewMove } : null,
         motion: { preference: this.motionPreference, effective: this.gentleMotion ? 'gentle' : 'full', systemReduced: motionQuery.matches },
-        feedback: { phase: this.feedback.phase, effects: this.feedback.effects.size, tokens: this.feedback.tokens.size, lastDuration: this.feedback.lastDuration },
+        feedback: { phase: this.feedback.phase, effects: this.feedback.effects.size, lastDuration: this.feedback.lastDuration },
         camera: { x: this.cameras.main.scrollX, y: this.cameras.main.scrollY },
         effects: [...this.feedback.effects].map(effect => ({ name: effect.name, x: effect.x, y: effect.y, alpha: effect.alpha, scaleX: effect.scaleX })),
         balls: [...this.balls].map(([id, ball]) => ({ id, x: ball.x, y: ball.y, scaleX: ball.scaleX, scaleY: ball.scaleY, alpha: ball.alpha })),
@@ -202,7 +200,18 @@ class SortScene extends Phaser.Scene {
     return this.own(this.add.text(x, y, value, { fontFamily: 'Segoe UI, Arial, sans-serif',
       fontSize: `${readableSize}px`, color }).setResolution(renderDensity).setOrigin(.5));
   }
-  position(index, slot) { const { x, top, scale } = this.layout[index]; return { x, y: top + (140 - slot * 36) * scale }; }
+  position(index, slot) { const { x, top, scale } = this.layout[index]; return { x, y: top + (136 - slot * 37) * scale }; }
+  jarOutline(graphics, x, top, scale, color, width = 2.5, alpha = .95) {
+    // Shared by the glass, route preview and landing/rejection highlights.
+    graphics.save().translateCanvas(x, top).scaleCanvas(scale, scale);
+    graphics.lineStyle(width, color, alpha).beginPath()
+      .arc(-16, 8, 22, -Math.PI + .94, -Math.PI, true).lineTo(-38, 148)
+      .arc(-16, 148, 22, Math.PI, Math.PI / 2, true).lineTo(16, 170)
+      .arc(16, 148, 22, Math.PI / 2, 0, true).lineTo(38, 8)
+      .arc(16, 8, 22, 0, -.94, true).strokePath();
+    graphics.strokeEllipse(0, -14, 74, 12);
+    graphics.restore();
+  }
   drawBoard() {
     this.feedback.releasePress();
     this.markers.clear();
@@ -210,8 +219,6 @@ class SortScene extends Phaser.Scene {
     this.boardObjects.forEach(object => object.destroy());
     this.boardObjects = [];
     this.balls.clear();
-    this.fillLabels.clear();
-    this.emptyLabels.clear();
     this.zones.forEach((zone, index) => {
       const layout = this.layout[index];
       zone.setVisible(Boolean(layout));
@@ -238,12 +245,10 @@ class SortScene extends Phaser.Scene {
       background.fillStyle(0x8e6b96, .16).fillEllipse(2, 175, 80, 16);
       background.fillStyle(0xffffff, .8).fillRoundedRect(-38, -14, 76, 184, 22);
       background.fillStyle(receiver ? tint : 0xe9dff3, receiver ? .09 : .28).fillRoundedRect(-34, -10, 68, 177, 19);
-      background.lineStyle(2.5, tint, .95).strokeRoundedRect(-38, -14, 76, 184, 22);
       background.lineStyle(3, 0xffffff, .95).lineBetween(-31, 9, -31, 134);
       background.lineStyle(1.5, 0xffffff, .9).lineBetween(30, 20, 30, 123);
-      background.fillStyle(0xffffff, .85).fillEllipse(0, -14, 74, 12);
-      background.lineStyle(2.5, tint, .95).strokeEllipse(0, -14, 74, 12);
-      background.lineStyle(2, 0xffffff, .95).lineBetween(-23, -18, 17, -18);
+      background.fillStyle(0xfffcff).fillEllipse(0, -14, 74, 12);
+      this.jarOutline(background, 0, 0, 1, tint);
       background.lineStyle(3, 0xffffff, .8).lineBetween(-18, 163, 18, 163);
       if (receiver) {
         // Large U-shaped magnet. The dedicated lesson explains the symbol.
@@ -252,9 +257,10 @@ class SortScene extends Phaser.Scene {
         background.lineStyle(5, 0x655170).lineBetween(-12, -46, -12, -41)
           .lineBetween(12, -46, 12, -41);
       }
-      background.fillStyle(0xffffff, .85).fillRoundedRect(-36, 178, 72, 26, 13);
+      if (LEVELS[this.levelIndex].lesson === 'receiver' && state.moves === 0 && index === 1) {
+        background.fillStyle(COLORS.B.fill).fillTriangle(-7, -37, 7, -37, 0, -27);
+      }
       background.restore();
-      this.fillLabels.set(index, this.text(x, top + 191 * s, `${index + 1}  ·  ${tube.length}/4`, 16 * s, receiver ? COLORS[tube[0]].ink : '#6d577c'));
       for (const [slot, color] of tube.entries()) {
         const point = this.position(index, slot);
         this.balls.set(`${index}:${slot}`, this.own(this.makeBall(point.x, point.y, color)));
@@ -376,7 +382,7 @@ class SortScene extends Phaser.Scene {
       const point = this.position(transfer.from, transfer.fromSlot);
       this.markers.strokeCircle(point.x, point.y, 21 * s);
     }
-    this.markers.strokeRoundedRect(destination.x - 41 * s, destination.top - 17 * s, 82 * s, 190 * s, 20 * s);
+    this.jarOutline(this.markers, destination.x, destination.top, s, COLORS[move.color].fill, 3, 1);
   }
   tween(targets, config) {
     return new Promise(resolve => this.tweens.add({ targets, ...config, onComplete: resolve }));
@@ -393,16 +399,14 @@ class SortScene extends Phaser.Scene {
     this.preview(index);
     this.busy = true;
     this.refresh();
-    const counts = this.session.state.tubes.map(tube => tube.length);
     const move = this.session.move(index);
-    const moving = await this.feedback.gather(move, counts);
+    const moving = await this.feedback.gather(move);
     if (move.dispatch) await this.feedback.collect(move, moving);
     else this.feedback.rim(move.destination, COLORS[move.color].fill, true);
     this.feedback.finish();
     this.busy = false;
     this.drawBoard();
     this.refresh();
-    if (move.dispatch) ui['color-progress'].querySelector(`[data-color="${move.color}"]`)?.classList.add('collect');
     if (status(this.session.state) === 'won') this.feedback.celebrate();
   }
   undo() {
@@ -421,7 +425,7 @@ class SortScene extends Phaser.Scene {
     if (level.lesson === 'partial') return state.cleared.length ? 'Приёмник отмечен магнитом. Нажми на оставшийся цвет.' : 'Открой спрятанные конфеты другим цветом. Неполная группа никуда не пропадёт.';
     if (level.lesson === 'receiver') return 'Одноцветный приёмник работает даже без пустых контейнеров. Собери оставшиеся конфеты.';
     if (level.lesson === 'space' && state.moves === 1 && state.tubes[3].join('') === 'AA') {
-      return 'Сбор △ откроет □ в № 2 — новый приёмник. Сбор □ сейчас займёт последнее пустое место.';
+      return 'Сбор △ откроет одноцветную стопку □ — новый приёмник. Сбор □ сейчас займёт последнее пустое место.';
     }
     if (level.lesson === 'space') return 'Ищи ход, который откроет одноцветный приёмник. Если упёрся в тупик, вернись на ход назад.';
     return level.tip;
@@ -436,7 +440,6 @@ class SortScene extends Phaser.Scene {
     ui['level-label'].textContent = `${this.levelIndex + 1} / ${LEVELS.length}`;
     ui['level-name'].textContent = LEVELS[this.levelIndex].name;
     ui.tip.textContent = this.tutorialText();
-    ui.progress.textContent = `${state.cleared.length} / ${colors.length}`;
     ui.undo.disabled = this.busy || this.session.history.length === 0;
     ui.restart.disabled = this.busy;
     ui.next.disabled = this.busy;
@@ -447,17 +450,6 @@ class SortScene extends Phaser.Scene {
       if (index === this.levelIndex) button.setAttribute('aria-current', 'step');
       else button.removeAttribute('aria-current');
     });
-    ui['color-progress'].replaceChildren(...colors.map(color => {
-      const chip = document.createElement('span'), done = state.cleared.includes(color);
-      chip.className = `color-chip${done ? ' done' : ''}`;
-      chip.dataset.color = color;
-      chip.style.setProperty('--color', COLORS[color].css);
-      chip.style.setProperty('--ink', COLORS[color].ink || '#493454');
-      chip.textContent = done ? '✓' : COLORS[color].symbol;
-      chip.title = `${COLORS[color].name}: ${done ? 'собрано' : 'на поле'}`;
-      chip.setAttribute('aria-label', chip.title);
-      return chip;
-    }));
     ui.next.hidden = this.busy || result !== 'won';
     if (result === 'won' && !this.busy) {
       const finished = this.levelIndex === LEVELS.length - 1;
@@ -468,7 +460,7 @@ class SortScene extends Phaser.Scene {
       ui['candy-box'].replaceChildren(...colors.flatMap(color => Array.from({ length: 4 }, () => {
         const cell = document.createElement('span'), candy = document.createElement('img'), symbol = document.createElement('span');
         cell.className = 'gift-candy';
-        candy.src = `./assets/${COLORS[color].texture}.png?v=0.7.0`;
+        candy.src = `./assets/${COLORS[color].texture}.png?v=0.8.0`;
         candy.alt = '';
         candy.width = candy.height = 96;
         symbol.textContent = COLORS[color].symbol;
@@ -488,5 +480,5 @@ new Phaser.Game({
   type: Phaser.AUTO, parent: 'game', width: boardView().width * renderDensity, height: boardView().height * renderDensity, backgroundColor: '#fff8ef',
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   scene: SortScene, input: { activePointers: 2 }, disableContextMenu: true,
-  title: 'Magnetic Sort', version: '0.7.0'
+  title: 'Magnetic Sort', version: '0.8.0'
 });

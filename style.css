@@ -15,13 +15,6 @@ button:focus-visible { outline: 3px solid #8858b0; outline-offset: 2px; }
 button:disabled { opacity: .46; cursor: default; box-shadow: none; }
 .icon-button { display: grid; place-items: center; flex: 0 0 44px; width: 44px; padding: 0; font-size: 20px; box-shadow: none; border-color: #e7dbea; background: #fcf7fb; }
 .icon-button svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
-.progress-row { min-width: 0; }
-#color-progress { display: flex; gap: 5px; }
-.color-chip { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; font-size: 18px; border: 1.5px solid var(--color); color: var(--ink); background: #fffcf7; }
-.color-chip.done { background: var(--color); color: #392442; box-shadow: inset 0 2px 2px #ffffff99, 0 2px 3px #49345418; }
-.color-chip.collect { animation: collected .46s ease-out; }
-@keyframes collected { 35% { transform: scale(1.5); box-shadow: 0 0 0 8px #cfb3de33; } 65% { transform: scale(.92); } }
-.collection-token { position: fixed; top: 0; left: 0; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: radial-gradient(circle at 30% 25%, #ffffffaa, transparent 45%), var(--color); color: #392442; border: 2px solid #ffffffaa; box-shadow: 0 3px 9px #63437433; font-size: 21px; z-index: 30; pointer-events: none; }
 .board-wrap { flex: 1; min-height: 0; position: relative; border-radius: 20px; background: #fff8ef; overflow: hidden; }
 #game { position: absolute; inset: 0; overflow: hidden; touch-action: none; }
 #game canvas { display: block; touch-action: none; }
@@ -37,7 +30,6 @@ button:disabled { opacity: .46; cursor: default; box-shadow: none; }
 #undo.rescue { border-color: #e9c677; color: #7d5314; background: #fff0cd; box-shadow: 0 3px 0 #e9d4a5; }
 .primary { flex: 1; background: linear-gradient(#a175cb, #8555b2); border-color: #8253a8; color: #fff; font-weight: 750; box-shadow: 0 3px 0 #674087, inset 0 1px 0 #cda9e8; }
 .primary:hover:not(:disabled) { background: #996bc4; }
-.is-won .progress-row { visibility: hidden; }
 .is-won #undo { flex-basis: 100px; border-color: transparent; background: transparent; box-shadow: none; font-size: 13px; }
 .is-won #next { min-height: 52px; font-size: 18px; }
 .victory { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 32px; padding: 16px; pointer-events: none; animation: victory-appear .3s ease-out; }
@@ -74,8 +66,6 @@ dialog::backdrop { background: #4b365c70; }
 @media (max-width: 360px) {
   .game-shell { padding-left: 5px; padding-right: 5px; }
   .game-card { padding: 6px; gap: 5px; }
-  .color-chip { width: 24px; height: 24px; }
-  #color-progress { gap: 4px; }
   .level-heading { min-width: 49px; }
   .level-heading strong { font-size: 17px; }
   .notice p { font-size: 11px; }
@@ -96,5 +86,3 @@ dialog::backdrop { background: #4b365c70; }
 }
 body[data-motion="gentle"] button { transition: none; }
 body[data-motion="gentle"] button:active { transform: none; }
-body[data-motion="gentle"] .color-chip.collect { animation: gentle-collected .4s ease-out; }
-@keyframes gentle-collected { 50% { box-shadow: 0 0 0 4px #cfb3de44; } }

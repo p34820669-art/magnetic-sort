@@ -1,11 +1,10 @@
-import { COLORS } from './levels.js?v=0.7.0';
+import { COLORS } from './levels.js?v=0.8.0';
 
 // Presentation only. The resolver owns all moves; feedback never changes puzzle state.
 export class SortFeedback {
   constructor(scene) {
     this.scene = scene;
     this.effects = new Set();
-    this.tokens = new Set();
     this.pressedBalls = new Map();
     this.pressEffects = new Set();
     this.cameraPulse = { progress: 0 };
@@ -25,8 +24,6 @@ export class SortFeedback {
     this.scene.cameras.main.setScroll(0, 0);
     this.scene.sfx?.win?.stop();
     for (const object of [...this.effects]) this.remove(object);
-    for (const token of this.tokens) { token.getAnimations().forEach(animation => animation.cancel()); token.remove(); }
-    this.tokens.clear();
     this.phase = 'idle';
   }
   press(move) {
@@ -57,8 +54,8 @@ export class SortFeedback {
   reject(index) {
     this.releasePress();
     const { x, top, scale: s } = this.scene.layout[index];
-    const ring = this.own(this.scene.add.graphics({ x, y: top + 76 * s }).setDepth(7).setName('reject-ring'));
-    ring.lineStyle(3, 0xffd46f, .8).strokeRoundedRect(-37 * s, -89 * s, 74 * s, 184 * s, 18 * s);
+    const ring = this.own(this.scene.add.graphics({ x, y: top }).setDepth(7).setName('reject-ring'));
+    this.scene.jarOutline(ring, 0, 0, s, 0xffd46f, 3, .8);
     this.fade(ring, 240);
   }
   landing(x, y, color) {
@@ -114,7 +111,7 @@ export class SortFeedback {
     const { x, top, scale: s } = this.scene.layout[index];
     const glow = this.own(this.scene.add.graphics().setDepth(6));
     glow.fillStyle(color, strong ? .2 : .1).fillRoundedRect(x - 38 * s, top - 14 * s, 76 * s, 184 * s, 18 * s);
-    glow.lineStyle(strong ? 4 : 2, color, .9).strokeRoundedRect(x - 40 * s, top - 16 * s, 80 * s, 188 * s, 19 * s);
+    this.scene.jarOutline(glow, x, top, s, color, strong ? 4 : 2, .9);
     this.fade(glow, strong ? 360 : 200);
   }
   burst(x, y, color, count = 9) {
@@ -131,14 +128,7 @@ export class SortFeedback {
         scale: .15, alpha: 0, duration: 300 + index % 3 * 70, ease: 'Cubic.easeOut' }).then(() => this.remove(spark));
     }
   }
-  label(x, y, message, color) {
-    const label = this.own(this.scene.add.text(x, y, message, { fontFamily: 'Segoe UI, Arial, sans-serif',
-      fontSize: '24px', fontStyle: 'bold', color, stroke: '#fffaf3', strokeThickness: 5 })
-      .setResolution(this.scene.cameras.main.zoom).setOrigin(.5).setDepth(35));
-    this.animate(label, { y: y - (this.gentle ? 0 : 20), alpha: 0, delay: 260, duration: 340,
-      ease: 'Sine.easeOut' }).then(() => this.remove(label));
-  }
-  async gather(move, counts) {
+  async gather(move) {
     this.phase = 'anticipation';
     this.started = performance.now();
     const scene = this.scene, tint = COLORS[move.color].fill;
@@ -147,15 +137,12 @@ export class SortFeedback {
     if (this.gentle) await scene.delay(90);
     else await this.animate(moving, { scaleX: 1.14, scaleY: .86, duration: 85, ease: 'Quad.easeOut' });
     scene.clearPreview(false);
-    scene.emptyLabels.get(move.destination)?.setVisible(false);
     scene.playSound('pickup');
     this.phase = 'gather';
     await Promise.all(move.transfers.map(async (transfer, order) => {
       const ball = moving[order];
       const target = scene.position(transfer.to, transfer.toSlot);
       await scene.delay(order * (this.gentle ? 30 : 55) + 1);
-      counts[transfer.from]--;
-      scene.fillLabels.get(transfer.from).setText(`${transfer.from + 1}  ·  ${counts[transfer.from]}/4`);
       ball.setDepth(20 + order);
       if (this.gentle) {
         // No spatial travel, but a readable transition instead of the old 1 ms teleport.
@@ -194,8 +181,6 @@ export class SortFeedback {
           duration: 130, ease: 'Cubic.easeIn', onUpdate: trace });
         this.fade(trail, 100);
       }
-      counts[transfer.to]++;
-      scene.fillLabels.get(transfer.to).setText(`${transfer.to + 1}  ·  ${counts[transfer.to]}/4`);
       scene.playSound('land', { rate: 1 + order * .07, volume: .65 });
       this.rim(transfer.to, tint);
       this.landing(target.x, target.y, tint);
@@ -214,7 +199,6 @@ export class SortFeedback {
     const batch = [...existing, ...moving];
     this.phase = 'complete';
     this.rim(move.destination, color.fill, true);
-    this.label(x, top - 5 * s, '4 / 4', color.ink || '#5e3978');
     this.charge(x, centerY, color.fill);
     if (this.gentle) {
       scene.playSound('complete', { rate: 1 + (scene.session.state.cleared.length - 1) * .04 });
@@ -226,27 +210,15 @@ export class SortFeedback {
       this.impact(x, centerY, color.fill);
       await this.animate(batch, { x, y: centerY, scale: .4, alpha: 0, duration: 100, ease: 'Cubic.easeIn' });
       this.phase = 'collect';
-      // A DOM token can cross the canvas edge and actually reach the HUD chip.
-      const rect = scene.game.canvas.getBoundingClientRect();
-      const chip = document.querySelector(`[data-color="${move.color}"]`).getBoundingClientRect();
-      const from = { x: rect.x + x * rect.width / scene.view.width - 14, y: rect.y + centerY * rect.height / scene.view.height - 14 };
-      const to = { x: chip.x + chip.width / 2 - 14, y: chip.y + chip.height / 2 - 14 };
-      const token = document.createElement('span');
-      token.className = 'collection-token';
-      token.style.setProperty('--color', color.css);
-      token.textContent = color.symbol;
-      token.setAttribute('aria-hidden', 'true');
-      document.body.append(token);
-      this.tokens.add(token);
-      const transform = (point, scale) => `translate(${point.x}px, ${point.y}px) scale(${scale})`;
-      const animation = token.animate([
-        { transform: transform(from, 1.2), opacity: 1 },
-        { transform: transform({ x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 - 24 }, 1), opacity: 1, offset: .5 },
-        { transform: transform(to, .8), opacity: .8 }
-      ], { duration: 280, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' });
-      await animation.finished.catch(() => {});
-      token.remove();
-      this.tokens.delete(token);
+      // Completion stays at the receiving jar; there is no separate HUD destination.
+      const glint = this.own(scene.add.graphics({ x, y: centerY }).setDepth(35).setName('collection-glint'));
+      glint.fillStyle(0xfffcf2).beginPath().moveTo(0, -20 * s)
+        .lineTo(5 * s, -5 * s).lineTo(20 * s, 0).lineTo(5 * s, 5 * s)
+        .lineTo(0, 20 * s).lineTo(-5 * s, 5 * s).lineTo(-20 * s, 0)
+        .lineTo(-5 * s, -5 * s).closePath().fillPath();
+      glint.setScale(.5);
+      await this.animate(glint, { scale: 1.25, alpha: 0, duration: 240, ease: 'Cubic.easeOut' });
+      this.remove(glint);
     }
   }
   finish() {
