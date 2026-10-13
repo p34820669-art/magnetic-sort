@@ -1,4 +1,4 @@
-import { COLORS } from './levels.js?v=0.10.0';
+import { COLORS } from './levels.js?v=0.11.0';
 
 // Presentation only. The resolver owns all moves; feedback never changes puzzle state.
 export class SortFeedback {
@@ -7,6 +7,7 @@ export class SortFeedback {
     this.effects = new Set();
     this.pressedBalls = new Map();
     this.pressEffects = new Set();
+    this.reactions = new Map();
     this.cameraPulse = { progress: 0 };
     this.phase = 'idle';
     this.gentle = false;
@@ -19,12 +20,51 @@ export class SortFeedback {
     object.destroy();
   }
   reset() {
-    this.releasePress();
-    this.scene.tweens.killTweensOf(this.cameraPulse);
-    this.scene.cameras.main.setScroll(0, 0);
+    this.beginMove();
     this.scene.sfx?.win?.stop();
     for (const object of [...this.effects]) this.remove(object);
+  }
+  beginMove() {
+    this.releasePress();
+    this.clearReactions();
+    this.scene.tweens.killTweensOf(this.cameraPulse);
+    this.scene.cameras.main.setScroll(0, 0);
     this.phase = 'idle';
+  }
+  clearReactions() {
+    for (const { pulse, restore } of this.reactions.values()) {
+      this.scene.tweens.killTweensOf(pulse);
+      restore();
+    }
+    this.reactions.clear();
+  }
+  react(target, apply, restore, duration = 150) {
+    const previous = this.reactions.get(target);
+    if (previous) {
+      this.scene.tweens.killTweensOf(previous.pulse);
+      previous.restore();
+    }
+    const pulse = { progress: 0 };
+    this.reactions.set(target, { pulse, restore });
+    this.scene.tweens.add({ targets: pulse, progress: 1, duration, ease: 'Linear',
+      onUpdate: () => apply(Math.sin(pulse.progress * Math.PI * 2) * (1 - pulse.progress) ** 2),
+      onComplete: () => { restore(); this.reactions.delete(target); } });
+  }
+  contact(index, slot, resting, fromX) {
+    if (this.gentle) return;
+    const { x, scale: s } = this.scene.layout[index];
+    for (const entry of resting) {
+      if (entry.slot >= slot) continue;
+      // Animate the inner candy visual, independently of its arrival tween.
+      const visual = entry.ball.getAt(0), base = s * 1.125;
+      const strength = 1 / (1 + (slot - entry.slot - 1) * .45);
+      this.react(visual, wave => {
+        visual.setScale(base * (1 + .10 * strength * wave), base * (1 - .12 * strength * wave));
+        visual.y = 3 * s * strength * wave;
+      }, () => visual.setScale(base).setY(0));
+    }
+    const jar = this.scene.jarViews.get(index), direction = fromX < x ? 1 : -1;
+    if (jar) this.react(jar, wave => jar.setRotation(direction * .018 * wave), () => jar.setRotation(0));
   }
   press(move) {
     this.releasePress();
@@ -133,6 +173,8 @@ export class SortFeedback {
     this.started = performance.now();
     const scene = this.scene, tint = COLORS[move.color].fill;
     const moving = move.transfers.map(transfer => scene.balls.get(`${transfer.from}:${transfer.fromSlot}`));
+    const resting = [...scene.balls].filter(([key]) => key.startsWith(`${move.destination}:`))
+      .map(([key, ball]) => ({ slot: Number(key.split(':')[1]), ball }));
     this.rim(move.destination, tint);
     if (this.gentle) await scene.delay(90);
     else await this.animate(moving, { scaleX: 1.14, scaleY: .86, duration: 85, ease: 'Quad.easeOut' });
@@ -183,6 +225,8 @@ export class SortFeedback {
         this.fade(trail, 100);
       }
       scene.playSound('land', { rate: 1 + order * .07, volume: .65 });
+      this.contact(transfer.to, transfer.toSlot, resting, scene.layout[transfer.from].x);
+      resting.push({ slot: transfer.toSlot, ball });
       this.rim(transfer.to, tint);
       this.landing(target.x, target.y, tint);
       if (!this.gentle) {
@@ -218,18 +262,48 @@ export class SortFeedback {
         .lineTo(0, 20 * s).lineTo(-5 * s, 5 * s).lineTo(-20 * s, 0)
         .lineTo(-5 * s, -5 * s).closePath().fillPath();
       glint.setScale(.5);
-      await this.animate(glint, { scale: 1.25, alpha: 0, duration: 240, ease: 'Cubic.easeOut' });
-      this.remove(glint);
+      // Decoration continues after the board is ready, including through another move.
+      this.animate(glint, { scale: 1.25, alpha: 0, duration: 240, ease: 'Cubic.easeOut' }).then(() => this.remove(glint));
     }
+  }
+  async keyFlight(move, index) {
+    const scene = this.scene, { x, top, scale: s } = scene.layout[move.destination];
+    const destination = scene.layout[index], end = { x: destination.x, y: destination.top - 12 * destination.scale };
+    const start = { x, y: top + 88 * s };
+    const bend = { x: (start.x + end.x) / 2, y: Math.max(24 * s, Math.min(start.y, end.y) - 48 * s) };
+    const tint = COLORS[move.color].fill;
+    const trail = this.own(scene.add.graphics().setDepth(33).setName('unlock-trail'));
+    const spark = this.own(scene.add.graphics({ x: start.x, y: start.y }).setDepth(34).setName('unlock-spark'));
+    spark.fillStyle(tint, .15).fillCircle(0, 0, 15 * s)
+      .fillStyle(tint).fillCircle(0, 0, 7 * s).fillStyle(0xfffcf2).fillCircle(-s, -s, 3 * s);
+    spark.progress = 0;
+    const points = [];
+    await this.animate(spark, { progress: 1, duration: 200, ease: 'Sine.easeInOut', onUpdate: () => {
+      const t = spark.progress, u = 1 - t;
+      spark.setPosition(u * u * start.x + 2 * u * t * bend.x + t * t * end.x,
+        u * u * start.y + 2 * u * t * bend.y + t * t * end.y);
+      points.push({ x: spark.x, y: spark.y });
+      if (points.length > 7) points.shift();
+      trail.clear();
+      for (let i = 1; i < points.length; i++) trail.lineStyle(i * s, tint, i / points.length * .5)
+        .lineBetween(points[i - 1].x, points[i - 1].y, points[i].x, points[i].y);
+    } });
+    this.fade(spark, 100);
+    this.fade(trail, 120);
+    this.burst(end.x, end.y, tint, 6);
   }
   async unlock(move) {
     this.phase = 'unlock';
     const scene = this.scene, color = COLORS[move.color].fill;
-    scene.playSound('pickup', { rate: 1.5, volume: .45 });
     await Promise.all(move.unlocked.map(async index => {
       const lock = scene.lockViews.get(index);
       if (!lock) return;
       const { x, top, scale: s } = scene.layout[index];
+      if (!this.gentle) {
+        await this.keyFlight(move, index);
+      }
+      // The existing click now coincides with the key reaching the lock.
+      if (index === move.unlocked[0]) scene.playSound('pickup', { rate: 1.5, volume: .45 });
       if (!this.gentle) {
         const glow = this.own(scene.add.graphics().setDepth(7).setName('unlock-glow'));
         scene.jarOutline(glow, x, top, s, color, 4, .9);
@@ -238,12 +312,14 @@ export class SortFeedback {
       }
       const candies = [...scene.balls].filter(([key]) => key.startsWith(`${index}:`)).map(([, ball]) => ball);
       await Promise.all([
-        this.animate(lock, { alpha: 0, ...(this.gentle ? {} : { y: top - 12 * s }), duration: 230, ease: 'Sine.easeOut' }),
-        candies.length ? this.animate(candies, { alpha: 1, duration: 230, ease: 'Sine.easeOut' }) : Promise.resolve()
+        this.animate(lock, { alpha: 0, ...(this.gentle ? {} : { y: top - 12 * s }), duration: this.gentle ? 230 : 160, ease: 'Sine.easeOut' }),
+        candies.length ? this.animate(candies, { alpha: 1, duration: this.gentle ? 230 : 160, ease: 'Sine.easeOut' }) : Promise.resolve()
       ]);
     }));
   }
   finish() {
+    this.scene.tweens.killTweensOf(this.cameraPulse);
+    this.scene.cameras.main.setScroll(0, 0);
     this.lastDuration = Math.round(performance.now() - this.started);
     this.phase = 'idle';
   }

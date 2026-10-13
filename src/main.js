@@ -1,6 +1,6 @@
-import { PuzzleSession, planMove, status } from './model.js?v=0.10.0';
-import { LEVELS, COLORS } from './levels.js?v=0.10.0';
-import { SortFeedback } from './feedback.js?v=0.10.0';
+import { PuzzleSession, planMove, status } from './model.js?v=0.11.0';
+import { LEVELS, COLORS } from './levels.js?v=0.11.0';
+import { SortFeedback } from './feedback.js?v=0.11.0';
 
 const ui = Object.fromEntries(['level-label', 'level-name', 'levels', 'tip',
   'status-panel', 'next', 'message', 'undo', 'restart', 'sound', 'menu',
@@ -60,14 +60,15 @@ class SortScene extends Phaser.Scene {
     this.busy = false;
     this.boardObjects = [];
     this.balls = new Map();
+    this.jarViews = new Map();
     this.lockViews = new Map();
     this.pressed = null;
     this.previewMove = null;
     this.audioPlays = { pickup: 0, complete: 0, land: 0, win: 0 };
   }
   preload() {
-    for (const { texture } of Object.values(COLORS)) if (texture) this.load.image(texture, `./assets/${texture}.png?v=0.10.0`);
-    for (const key of ['pickup', 'complete', 'land', 'win']) this.load.audio(key, `./assets/${key}.wav?v=0.10.0`);
+    for (const { texture } of Object.values(COLORS)) if (texture) this.load.image(texture, `./assets/${texture}.png?v=0.11.0`);
+    for (const key of ['pickup', 'complete', 'land', 'win']) this.load.audio(key, `./assets/${key}.wav?v=0.11.0`);
   }
   create() {
     this.cameras.main.setOrigin(0, 0).setZoom(renderDensity);
@@ -148,16 +149,18 @@ class SortScene extends Phaser.Scene {
     // Read-only diagnostics, available only to local QA. No game-state setters.
     if (new URLSearchParams(location.search).has('qa')) {
       window.__sortQA = { snapshot: () => ({
-        version: '0.10.0', state: structuredClone(this.session.state), busy: this.busy, level: this.levelIndex,
+        version: '0.11.0', state: structuredClone(this.session.state), busy: this.busy, level: this.levelIndex,
         inputEnabled: this.input.enabled,
         status: status(this.session.state), history: this.session.history.length,
         renderer: this.game.renderer.type, receivers: receivers(this.session.state),
         preview: this.previewMove ? { ...this.previewMove } : null,
         motion: { preference: this.motionPreference, effective: this.gentleMotion ? 'gentle' : 'full', systemReduced: motionQuery.matches },
-        feedback: { phase: this.feedback.phase, effects: this.feedback.effects.size, lastDuration: this.feedback.lastDuration },
+        feedback: { phase: this.feedback.phase, effects: this.feedback.effects.size, reactions: this.feedback.reactions.size, lastDuration: this.feedback.lastDuration },
         camera: { x: this.cameras.main.scrollX, y: this.cameras.main.scrollY },
         effects: [...this.feedback.effects].map(effect => ({ name: effect.name, x: effect.x, y: effect.y, alpha: effect.alpha, scaleX: effect.scaleX })),
-        balls: [...this.balls].map(([id, ball]) => ({ id, x: ball.x, y: ball.y, scaleX: ball.scaleX, scaleY: ball.scaleY, alpha: ball.alpha })),
+        balls: [...this.balls].map(([id, ball]) => ({ id, x: ball.x, y: ball.y, scaleX: ball.scaleX, scaleY: ball.scaleY, alpha: ball.alpha,
+          contact: { y: ball.getAt(0).y, scaleX: ball.getAt(0).scaleX, scaleY: ball.getAt(0).scaleY } })),
+        jars: [...this.jarViews].map(([index, jar]) => ({ index, rotation: jar.rotation })),
         locks: [...this.lockViews].map(([index, lock]) => ({ index, x: lock.x, y: lock.y, alpha: lock.alpha, shackleY: lock.getByName('shackle').y })),
         audio: { muted: this.muted, engineMuted: this.sound.mute, plays: { ...this.audioPlays },
           decoded: ['pickup', 'complete', 'land', 'win'].every(key => this.cache.audio.exists(key)),
@@ -222,11 +225,13 @@ class SortScene extends Phaser.Scene {
   }
   drawBoard() {
     this.feedback.releasePress();
+    this.feedback.clearReactions();
     this.markers.clear();
     this.previewMove = null;
     this.boardObjects.forEach(object => object.destroy());
     this.boardObjects = [];
     this.balls.clear();
+    this.jarViews.clear();
     this.lockViews.clear();
     this.zones.forEach((zone, index) => {
       const layout = this.layout[index];
@@ -265,24 +270,29 @@ class SortScene extends Phaser.Scene {
       background.save().translateCanvas(x, top).scaleCanvas(s, s);
       background.fillStyle(0x987681, .07).fillEllipse(3, 198, 98, 24);
       background.fillStyle(0x987681, .14).fillEllipse(2, 195, 78, 13);
-      background.fillStyle(0xffffff, .8).fillRoundedRect(-42, -14, 84, 204, 24);
-      background.fillStyle(receiver ? tint : 0xe9dff3, receiver ? .09 : .28).fillRoundedRect(-38, -10, 76, 197, 21);
-      background.lineStyle(3, 0xffffff, .95).lineBetween(-35, 11, -35, 151);
-      background.lineStyle(1.5, 0xffffff, .9).lineBetween(34, 22, 34, 143);
-      background.fillStyle(0xfffcff).fillEllipse(0, -14, 82, 12);
-      this.jarOutline(background, 0, 0, 1, tint);
-      background.lineStyle(3, 0xffffff, .8).lineBetween(-20, 183, 20, 183);
+      background.restore();
+      // Glass pivots at its base; shadows and hit areas stay on the tray.
+      const glass = this.own(this.add.graphics({ x, y: top + 190 * s }).setDepth(1).setName(`jar-${index}`));
+      this.jarViews.set(index, glass);
+      glass.save().translateCanvas(0, -190 * s).scaleCanvas(s, s);
+      glass.fillStyle(0xffffff, .8).fillRoundedRect(-42, -14, 84, 204, 24);
+      glass.fillStyle(receiver ? tint : 0xe9dff3, receiver ? .09 : .28).fillRoundedRect(-38, -10, 76, 197, 21);
+      glass.lineStyle(3, 0xffffff, .95).lineBetween(-35, 11, -35, 151);
+      glass.lineStyle(1.5, 0xffffff, .9).lineBetween(34, 22, 34, 143);
+      glass.fillStyle(0xfffcff).fillEllipse(0, -14, 82, 12);
+      this.jarOutline(glass, 0, 0, 1, tint);
+      glass.lineStyle(3, 0xffffff, .8).lineBetween(-20, 183, 20, 183);
       if (receiver) {
         // Large U-shaped magnet. The dedicated lesson explains the symbol.
-        background.lineStyle(5, tint).beginPath().moveTo(-12, -46)
+        glass.lineStyle(5, tint).beginPath().moveTo(-12, -46)
           .lineTo(-12, -29).lineTo(12, -29).lineTo(12, -46).strokePath();
-        background.lineStyle(5, 0x655170).lineBetween(-12, -46, -12, -41)
+        glass.lineStyle(5, 0x655170).lineBetween(-12, -46, -12, -41)
           .lineBetween(12, -46, 12, -41);
       }
       if (LEVELS[this.levelIndex].lesson === 'receiver' && state.moves === 0 && index === 1) {
-        background.fillStyle(COLORS.B.fill).fillTriangle(-7, -37, 7, -37, 0, -27);
+        glass.fillStyle(COLORS.B.fill).fillTriangle(-7, -37, 7, -37, 0, -27);
       }
-      background.restore();
+      glass.restore();
       for (const [slot, color] of tube.entries()) {
         const point = this.position(index, slot);
         this.balls.set(`${index}:${slot}`, this.own(this.makeBall(point.x, point.y, color).setAlpha(locked ? .58 : 1)));
@@ -291,7 +301,7 @@ class SortScene extends Phaser.Scene {
       if (tube.length && !locked) {
         const point = this.position(index, tube.length - 1);
         if (planMove(state, index).valid) {
-          background.lineStyle(2, COLORS[tube.at(-1)].fill, .8).strokeCircle(point.x, point.y, 26 * s);
+          this.own(this.add.graphics().setDepth(1.5)).lineStyle(2, COLORS[tube.at(-1)].fill, .8).strokeCircle(point.x, point.y, 26 * s);
         } else {
           this.text(x + 31 * s, point.y - 10 * s, '×', 18 * s, '#79638a').setDepth(3);
         }
@@ -437,7 +447,7 @@ class SortScene extends Phaser.Scene {
     const planned = planMove(this.session.state, index);
     if (!planned.valid) { this.feedback.reject(index); this.say(reasonText(planned)); return; }
     this.hideNotice();
-    this.feedback.reset();
+    this.feedback.beginMove();
     this.feedback.gentle = this.gentleMotion;
     this.preview(index);
     this.busy = true;
@@ -504,7 +514,7 @@ class SortScene extends Phaser.Scene {
       ui['candy-box'].replaceChildren(...colors.flatMap(color => Array.from({ length: 4 }, () => {
         const cell = document.createElement('span'), candy = document.createElement('img'), symbol = document.createElement('span');
         cell.className = 'gift-candy';
-        candy.src = `./assets/${COLORS[color].texture}.png?v=0.10.0`;
+        candy.src = `./assets/${COLORS[color].texture}.png?v=0.11.0`;
         candy.alt = '';
         candy.width = candy.height = 96;
         symbol.textContent = COLORS[color].symbol;
@@ -524,5 +534,5 @@ new Phaser.Game({
   type: Phaser.AUTO, parent: 'game', width: boardView().width * renderDensity, height: boardView().height * renderDensity, backgroundColor: '#fff8ef',
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   scene: SortScene, input: { activePointers: 2 }, disableContextMenu: true,
-  title: 'Magnetic Sort', version: '0.10.0'
+  title: 'Magnetic Sort', version: '0.11.0'
 });
