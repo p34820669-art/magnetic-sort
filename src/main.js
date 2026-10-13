@@ -1,6 +1,6 @@
-import { PuzzleSession, planMove, status } from './model.js?v=0.3.0';
-import { LEVELS, COLORS } from './levels.js?v=0.3.0';
-import { SortFeedback } from './feedback.js?v=0.3.0';
+import { PuzzleSession, planMove, status } from './model.js?v=0.4.0';
+import { LEVELS, COLORS } from './levels.js?v=0.4.0';
+import { SortFeedback } from './feedback.js?v=0.4.0';
 
 const ui = Object.fromEntries(['level-label', 'level-name', 'moves', 'levels', 'tip', 'progress',
   'color-progress', 'status-panel', 'next', 'message', 'undo', 'restart', 'sound', 'menu',
@@ -39,14 +39,12 @@ class SortScene extends Phaser.Scene {
     this.balls = new Map();
     this.pressed = null;
     this.previewMove = null;
-    this.audioPlays = { pickup: 0, complete: 0, land: 0 };
+    this.audioPlays = { pickup: 0, complete: 0, land: 0, win: 0 };
     this.fillLabels = new Map();
     this.emptyLabels = new Map();
   }
   preload() {
-    this.load.audio('pickup', './assets/pickup.wav');
-    this.load.audio('complete', './assets/complete.wav');
-    this.load.audio('land', './assets/land.wav');
+    for (const key of ['pickup', 'complete', 'land', 'win']) this.load.audio(key, `./assets/${key}.wav?v=0.4.0`);
   }
   create() {
     this.markers = this.add.graphics().setDepth(5);
@@ -56,7 +54,7 @@ class SortScene extends Phaser.Scene {
     this.setMotion(motion);
     ui.motion.addEventListener('change', () => this.setMotion(ui.motion.value));
     motionQuery.addEventListener('change', () => this.setMotion(this.motionPreference));
-    this.sfx = Object.fromEntries(['pickup', 'complete', 'land'].map(key => {
+    this.sfx = Object.fromEntries(['pickup', 'complete', 'land', 'win'].map(key => {
       const sound = this.sound.add(key);
       sound.on('play', () => { this.audioPlays[key]++; });
       return [key, sound];
@@ -110,15 +108,17 @@ class SortScene extends Phaser.Scene {
     // Read-only diagnostics, available only to local QA. No game-state setters.
     if (new URLSearchParams(location.search).has('qa')) {
       window.__sortQA = { snapshot: () => ({
-        version: '0.3.0', state: structuredClone(this.session.state), busy: this.busy, level: this.levelIndex,
+        version: '0.4.0', state: structuredClone(this.session.state), busy: this.busy, level: this.levelIndex,
         status: status(this.session.state), history: this.session.history.length,
         renderer: this.game.renderer.type, receivers: receivers(this.session.state),
         preview: this.previewMove ? { ...this.previewMove } : null,
         motion: { preference: this.motionPreference, effective: this.gentleMotion ? 'gentle' : 'full', systemReduced: motionQuery.matches },
         feedback: { phase: this.feedback.phase, effects: this.feedback.effects.size, tokens: this.feedback.tokens.size, lastDuration: this.feedback.lastDuration },
+        camera: { x: this.cameras.main.scrollX, y: this.cameras.main.scrollY },
+        effects: [...this.feedback.effects].map(effect => ({ name: effect.name, x: effect.x, y: effect.y, alpha: effect.alpha, scaleX: effect.scaleX })),
         balls: [...this.balls].map(([id, ball]) => ({ id, x: ball.x, y: ball.y, scaleX: ball.scaleX, scaleY: ball.scaleY, alpha: ball.alpha })),
         audio: { muted: this.muted, engineMuted: this.sound.mute, plays: { ...this.audioPlays },
-          decoded: ['pickup', 'complete', 'land'].every(key => this.cache.audio.exists(key)),
+          decoded: ['pickup', 'complete', 'land', 'win'].every(key => this.cache.audio.exists(key)),
           context: this.sound.context?.state ?? 'html5' },
         centers: this.layout.map(({ x, top }) => ({ x, y: top + 80 }))
       }) };
@@ -163,6 +163,7 @@ class SortScene extends Phaser.Scene {
   }
   position(index, slot) { const { x, top } = this.layout[index]; return { x, y: top + 140 - slot * 36 }; }
   drawBoard() {
+    this.feedback.releasePress();
     this.markers.clear();
     this.previewMove = null;
     this.boardObjects.forEach(object => object.destroy());
@@ -229,6 +230,8 @@ class SortScene extends Phaser.Scene {
         if (this.busy || this.pressed || (!pointer.wasTouch && !pointer.leftButtonDown())) return;
         this.pressed = { index, id: pointer.id };
         this.preview(index);
+        const move = planMove(this.session.state, index);
+        if (move.valid) this.feedback.press(move);
       });
       zone.on('pointerup', pointer => {
         if (this.pressed?.index === index && this.pressed.id === pointer.id) {
@@ -256,6 +259,7 @@ class SortScene extends Phaser.Scene {
   }
   say(message) { ui.message.textContent = message; }
   clearPreview(resetMessage = true) {
+    this.feedback.releasePress();
     this.markers.clear();
     this.previewMove = null;
     if (resetMessage && status(this.session.state) === 'playing') this.say(idleMessage);
@@ -293,7 +297,7 @@ class SortScene extends Phaser.Scene {
   async choose(index) {
     if (this.busy || ui['level-dialog'].open || status(this.session.state) !== 'playing') return;
     const planned = planMove(this.session.state, index);
-    if (!planned.valid) { this.say(reasons[planned.reason]); return; }
+    if (!planned.valid) { this.feedback.reject(index); this.say(reasons[planned.reason]); return; }
     this.feedback.reset();
     this.feedback.gentle = this.gentleMotion;
     this.preview(index);
@@ -380,5 +384,5 @@ new Phaser.Game({
   type: Phaser.AUTO, parent: 'game', width: 480, height: 520, backgroundColor: '#172335',
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   scene: SortScene, input: { activePointers: 2 }, disableContextMenu: true,
-  title: 'Magnetic Sort', version: '0.3.0'
+  title: 'Magnetic Sort', version: '0.4.0'
 });

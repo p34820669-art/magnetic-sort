@@ -7,6 +7,7 @@ h1 { font-size: 16px; line-height: 1.12; margin: 0; font-weight: 700; letter-spa
 .toolbar { display: flex; gap: 6px; }
 button { font: inherit; font-size: 14px; color: inherit; background: #24354b; border: 1px solid #40536c; cursor: pointer; border-radius: 12px; min-height: 44px; padding: 0 12px; touch-action: manipulation; transition: background .15s; }
 button:hover:not(:disabled) { background: #314964; }
+button:active:not(:disabled) { transform: translateY(2px) scale(.97); }
 button:focus-visible { outline: 3px solid #bdeff0; outline-offset: 2px; }
 button:disabled { opacity: .4; cursor: default; }
 .toolbar button { font-size: 12px; padding: 0 10px; }
@@ -72,5 +73,6 @@ dialog::backdrop { background: #050d18bb; }
   .bottom-panel { grid-column: 1; grid-row: 2; }
 }
 body[data-motion="gentle"] button { transition: none; }
+body[data-motion="gentle"] button:active { transform: none; }
 body[data-motion="gentle"] .color-chip.collect { animation: gentle-collected .4s ease-out; }
 @keyframes gentle-collected { 50% { box-shadow: 0 0 0 4px #ffffff33; } }

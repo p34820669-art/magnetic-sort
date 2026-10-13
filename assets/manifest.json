@@ -1,5 +1,5 @@
 {
-  "version": "0.3.0",
+  "version": "0.4.0",
   "provenance": "Original procedural audio; no third-party samples or generated images",
   "generator": "scripts/generate-audio.mjs",
   "regenerate": "node scripts/generate-audio.mjs",
@@ -15,13 +15,19 @@
       "file": "complete.wav",
       "durationMs": 280,
       "purpose": "Completed group of four",
-      "recipe": "E5/G#5/B5, staggered 0/60/110 ms, quadratic decay, summed peak below -6 dBFS"
+      "recipe": "E5/G#5/B5, staggered 0/60/110 ms, quadratic decay, summed peak below -6 dBFS; soft low pop on release"
     },
     {
       "file": "land.wav",
       "durationMs": 75,
       "purpose": "Individual landing",
       "recipe": "Soft falling sine with quiet harmonic; pitch rises per arriving ball"
+    },
+    {
+      "file": "win.wav",
+      "durationMs": 660,
+      "purpose": "Level cleared",
+      "recipe": "C5/E5/G5/C6 staggered 0/90/180/290 ms with soft attack and quadratic decay"
     }
   ],
   "visuals": {
@@ -32,7 +38,7 @@
       "favicon.svg",
       "src/feedback.js"
     ],
-    "direction": "Dark navy board, pastel colors with distinct geometric symbols, U-shaped receiver magnet, colored counters, short collection pulse; arc flights, short trails, squash/stretch, receiver pulses, collection token, completion sparks; gentle fades honor motion preference",
+    "direction": "Dark navy board, pastel colors with distinct geometric symbols, U-shaped receiver magnet, colored counters, short collection pulse; arc flights, short trails, squash/stretch, receiver pulses, collection token, completion sparks; gentle fades honor motion preference; press halos and compression, landing ripples and glints, inward charge sparks, damped 3px collection impulse, victory confetti",
     "imageGenerationPrompts": []
   }
 }

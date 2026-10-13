@@ -1,4 +1,4 @@
-import { COLORS } from './levels.js?v=0.3.0';
+import { COLORS } from './levels.js?v=0.4.0';
 
 // Presentation only. The resolver owns all moves; feedback never changes puzzle state.
 export class SortFeedback {
@@ -6,6 +6,9 @@ export class SortFeedback {
     this.scene = scene;
     this.effects = new Set();
     this.tokens = new Set();
+    this.pressedBalls = new Map();
+    this.pressEffects = new Set();
+    this.cameraPulse = { progress: 0 };
     this.phase = 'idle';
     this.gentle = false;
     this.lastDuration = 0;
@@ -17,10 +20,86 @@ export class SortFeedback {
     object.destroy();
   }
   reset() {
+    this.releasePress();
+    this.scene.tweens.killTweensOf(this.cameraPulse);
+    this.scene.cameras.main.setScroll(0, 0);
+    this.scene.sfx?.win?.stop();
     for (const object of [...this.effects]) this.remove(object);
     for (const token of this.tokens) { token.getAnimations().forEach(animation => animation.cancel()); token.remove(); }
     this.tokens.clear();
     this.phase = 'idle';
+  }
+  press(move) {
+    this.releasePress();
+    for (const transfer of move.transfers) {
+      const ball = this.scene.balls.get(`${transfer.from}:${transfer.fromSlot}`);
+      this.pressedBalls.set(ball, { y: ball.y });
+      const halo = this.own(this.scene.add.graphics({ x: ball.x, y: ball.y }).setDepth(7).setName('press-halo'));
+      halo.fillStyle(COLORS[move.color].fill, .13).fillCircle(0, 0, 25);
+      halo.lineStyle(2, 0xffffff, .65).strokeCircle(0, 0, 22);
+      this.pressEffects.add(halo);
+      if (!this.scene.gentleMotion) {
+        this.scene.tweens.add({ targets: ball, scaleX: 1.18, scaleY: .82, y: ball.y + 3, duration: 85, ease: 'Quad.easeOut' });
+        this.scene.tweens.add({ targets: halo, scale: 1.15, alpha: .55, duration: 380, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+      }
+    }
+  }
+  releasePress() {
+    for (const [ball, rest] of this.pressedBalls) {
+      this.scene.tweens.killTweensOf(ball);
+      if (ball.scene) ball.setScale(1).setY(rest.y);
+    }
+    this.pressedBalls.clear();
+    for (const halo of this.pressEffects) this.remove(halo);
+    this.pressEffects.clear();
+  }
+  reject(index) {
+    this.releasePress();
+    const { x, top } = this.scene.layout[index];
+    const ring = this.own(this.scene.add.graphics({ x, y: top + 76 }).setDepth(7).setName('reject-ring'));
+    ring.lineStyle(3, 0xffd46f, .8).strokeRoundedRect(-37, -89, 74, 184, 18);
+    this.fade(ring, 240);
+  }
+  landing(x, y, color) {
+    if (this.gentle) return;
+    const ring = this.own(this.scene.add.graphics({ x, y: y + 17 }).setDepth(24).setName('landing-ring'));
+    ring.lineStyle(2, color, .85).strokeEllipse(0, 0, 32, 9);
+    this.animate(ring, { scaleX: 2.1, scaleY: 1.5, alpha: 0, duration: 230, ease: 'Cubic.easeOut' }).then(() => this.remove(ring));
+    const glint = this.own(this.scene.add.graphics({ x: x - 10, y: y - 12 }).setDepth(24).setName('landing-glint'));
+    glint.fillStyle(0xfff4d9).fillTriangle(0, -8, 3, 0, -3, 0).fillTriangle(0, 8, 3, 0, -3, 0)
+      .fillTriangle(-6, 0, 0, -2, 0, 2).fillTriangle(6, 0, 0, -2, 0, 2);
+    this.animate(glint, { scale: 1.4, alpha: 0, duration: 190, ease: 'Sine.easeOut' }).then(() => this.remove(glint));
+    for (const side of [-1, 1]) {
+      const dust = this.own(this.scene.add.graphics({ x: x + side * 14, y: y + 12 }).setDepth(23).setName('landing-spark'));
+      dust.fillStyle(color, .85).fillCircle(0, 0, 2.5);
+      this.animate(dust, { x: x + side * 32, y: y - 7, scale: .2, alpha: 0, duration: 240, ease: 'Cubic.easeOut' }).then(() => this.remove(dust));
+    }
+  }
+  charge(x, y, color) {
+    if (this.gentle) return;
+    const aura = this.own(this.scene.add.graphics({ x, y }).setDepth(1).setName('charge-aura'));
+    aura.fillStyle(color, .14).fillCircle(0, 0, 75).fillStyle(color, .16).fillCircle(0, 0, 45);
+    this.animate(aura, { scale: 1.3, alpha: 0, duration: 390, ease: 'Sine.easeOut' }).then(() => this.remove(aura));
+    for (let index = 0; index < 8; index++) {
+      const angle = Math.PI * 2 * index / 8;
+      const spark = this.own(this.scene.add.graphics({ x: x + Math.cos(angle) * 66, y: y + Math.sin(angle) * 66 }).setDepth(26).setName('charge-spark'));
+      spark.fillStyle(color, .9).fillCircle(0, 0, 3);
+      this.animate(spark, { x, y, scale: .25, duration: 180, ease: 'Cubic.easeIn' }).then(() => this.remove(spark));
+    }
+  }
+  impact(x, y, color) {
+    if (this.gentle) return;
+    // A bounded, damped visual impulse. Input is still locked for collection.
+    const camera = this.scene.cameras.main, pulse = this.cameraPulse;
+    this.scene.tweens.killTweensOf(pulse);
+    pulse.progress = 0;
+    this.scene.tweens.add({ targets: pulse, progress: 1, duration: 180, ease: 'Linear', onUpdate: () => {
+      const t = pulse.progress, amplitude = 3 * (1 - t) ** 2;
+      camera.setScroll(Math.sin(t * Math.PI * 4) * amplitude, Math.sin(t * Math.PI * 3) * amplitude * .7);
+    }, onComplete: () => camera.setScroll(0, 0) });
+    const wave = this.own(this.scene.add.graphics({ x, y }).setDepth(25).setName('collection-wave'));
+    wave.lineStyle(3, color, .8).strokeCircle(0, 0, 24);
+    this.animate(wave, { scale: 4, alpha: 0, duration: 360, ease: 'Cubic.easeOut' }).then(() => this.remove(wave));
   }
   animate(targets, config) {
     return new Promise(resolve => this.scene.tweens.add({ targets, ...config, onComplete: resolve }));
@@ -115,6 +194,7 @@ export class SortFeedback {
       scene.fillLabels.get(transfer.to).setText(`${transfer.to + 1}  ·  ${counts[transfer.to]}/4`);
       scene.playSound('land', { rate: 1 + order * .07, volume: .65 });
       this.rim(transfer.to, tint);
+      this.landing(target.x, target.y, tint);
       if (!this.gentle) {
         ball.setScale(1.22, .8);
         await this.animate(ball, { scaleX: 1, scaleY: 1, duration: 120, ease: 'Back.easeOut' });
@@ -129,13 +209,16 @@ export class SortFeedback {
     const batch = [...existing, ...moving];
     this.phase = 'complete';
     this.rim(move.destination, color.fill, true);
-    this.label(x, top + 64, '4 / 4', color.css);
-    scene.playSound('complete');
+    this.label(x, top - 5, '4 / 4', color.css);
+    this.charge(x, top + 74, color.fill);
     if (this.gentle) {
+      scene.playSound('complete', { rate: 1 + (scene.session.state.cleared.length - 1) * .04 });
       await this.animate(batch, { alpha: 0, duration: 250, ease: 'Sine.easeInOut' });
     } else {
       await this.animate(batch, { scaleX: 1.15, scaleY: .86, duration: 75, yoyo: true, ease: 'Sine.easeInOut' });
+      scene.playSound('complete', { rate: 1 + (scene.session.state.cleared.length - 1) * .04 });
       this.burst(x, top + 74, color.fill, 12);
+      this.impact(x, top + 74, color.fill);
       await this.animate(batch, { x, y: top + 74, scale: .4, alpha: 0, duration: 100, ease: 'Cubic.easeIn' });
       this.phase = 'collect';
       // A DOM token can cross the canvas edge and actually reach the HUD chip.
@@ -167,6 +250,22 @@ export class SortFeedback {
   }
   celebrate() {
     const scene = this.scene;
+    scene.playSound('win', { volume: .8 });
+    const halo = this.own(scene.add.graphics({ x: 240, y: 246 }).setDepth(30).setName('victory-halo'));
+    halo.fillStyle(0x35d3b0, .08).fillCircle(0, 0, 105).fillStyle(0x35d3b0, .1).fillCircle(0, 0, 75);
+    this.animate(halo, { scale: this.gentle ? 1 : 1.8, alpha: 0, duration: 950, ease: 'Sine.easeOut' }).then(() => this.remove(halo));
+    if (!this.gentle) for (let index = 0; index < 32; index++) {
+      const side = index % 2 ? 1 : -1, startX = side < 0 ? 80 : 400;
+      const confetti = this.own(scene.add.graphics({ x: startX, y: 220 }).setDepth(36).setName('confetti'));
+      confetti.fillStyle([0x35d3b0, 0xff8f78, 0xffd46f, 0x91a7ff][index % 4]).fillRect(-3, -5, 6, 10);
+      confetti.progress = 0;
+      this.animate(confetti, { progress: 1, rotation: side * (4 + index % 4), duration: 1050 + index % 5 * 80,
+        ease: 'Linear', onUpdate: () => {
+          const t = confetti.progress;
+          confetti.setPosition(startX - side * (40 + index % 8 * 19) * t, 220 - (130 + index % 6 * 23) * t + 340 * t * t);
+          confetti.setAlpha(Math.min(1, (1 - t) * 4)).setScale(Math.max(.2, Math.abs(Math.cos(t * Math.PI * 3))), 1);
+        } }).then(() => this.remove(confetti));
+    }
     const title = this.own(scene.add.text(240, 246, 'Чисто!', { fontFamily: 'Segoe UI, Arial, sans-serif',
       fontSize: '48px', fontStyle: 'bold', color: '#a5efde', stroke: '#101c2d', strokeThickness: 7 }).setOrigin(.5).setDepth(40));
     if (this.gentle) title.setAlpha(0);
