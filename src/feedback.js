@@ -1,4 +1,4 @@
-import { COLORS } from './levels.js?v=0.4.0';
+import { COLORS } from './levels.js?v=0.5.0';
 
 // Presentation only. The resolver owns all moves; feedback never changes puzzle state.
 export class SortFeedback {
@@ -131,7 +131,7 @@ export class SortFeedback {
   }
   label(x, y, message, color) {
     const label = this.own(this.scene.add.text(x, y, message, { fontFamily: 'Segoe UI, Arial, sans-serif',
-      fontSize: '24px', fontStyle: 'bold', color, stroke: '#101c2d', strokeThickness: 5 }).setOrigin(.5).setDepth(35));
+      fontSize: '24px', fontStyle: 'bold', color, stroke: '#fffaf3', strokeThickness: 5 }).setOrigin(.5).setDepth(35));
     this.animate(label, { y: y - (this.gentle ? 0 : 20), alpha: 0, delay: 260, duration: 340,
       ease: 'Sine.easeOut' }).then(() => this.remove(label));
   }
@@ -209,7 +209,7 @@ export class SortFeedback {
     const batch = [...existing, ...moving];
     this.phase = 'complete';
     this.rim(move.destination, color.fill, true);
-    this.label(x, top - 5, '4 / 4', color.css);
+    this.label(x, top - 5, '4 / 4', color.ink || '#5e3978');
     this.charge(x, top + 74, color.fill);
     if (this.gentle) {
       scene.playSound('complete', { rate: 1 + (scene.session.state.cleared.length - 1) * .04 });
@@ -267,7 +267,7 @@ export class SortFeedback {
         } }).then(() => this.remove(confetti));
     }
     const title = this.own(scene.add.text(240, 246, 'Чисто!', { fontFamily: 'Segoe UI, Arial, sans-serif',
-      fontSize: '48px', fontStyle: 'bold', color: '#a5efde', stroke: '#101c2d', strokeThickness: 7 }).setOrigin(.5).setDepth(40));
+      fontSize: '48px', fontStyle: 'bold', color: '#8052ab', stroke: '#fffaf3', strokeThickness: 7 }).setOrigin(.5).setDepth(40));
     if (this.gentle) title.setAlpha(0);
     else title.setScale(.65);
     this.animate(title, { scale: 1, alpha: 1, duration: 260, ease: this.gentle ? 'Sine.easeOut' : 'Back.easeOut' });

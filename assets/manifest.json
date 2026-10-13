@@ -1,44 +1,114 @@
 {
-  "version": "0.4.0",
-  "provenance": "Original procedural audio; no third-party samples or generated images",
-  "generator": "scripts/generate-audio.mjs",
-  "regenerate": "node scripts/generate-audio.mjs",
-  "format": "PCM WAV, mono, 16-bit, 22050 Hz",
-  "assets": [
-    {
-      "file": "pickup.wav",
-      "durationMs": 110,
-      "purpose": "Each valid gather",
-      "recipe": "Rising sine, 6 ms attack, quadratic decay, amplitude 0.18"
-    },
-    {
-      "file": "complete.wav",
-      "durationMs": 280,
-      "purpose": "Completed group of four",
-      "recipe": "E5/G#5/B5, staggered 0/60/110 ms, quadratic decay, summed peak below -6 dBFS; soft low pop on release"
-    },
-    {
-      "file": "land.wav",
-      "durationMs": 75,
-      "purpose": "Individual landing",
-      "recipe": "Soft falling sine with quiet harmonic; pitch rises per arriving ball"
-    },
-    {
-      "file": "win.wav",
-      "durationMs": 660,
-      "purpose": "Level cleared",
-      "recipe": "C5/E5/G5/C6 staggered 0/90/180/290 ms with soft attack and quadratic decay"
-    }
-  ],
-  "visuals": {
-    "sources": [
-      "src/main.js",
-      "src/levels.js",
-      "style.css",
-      "favicon.svg",
-      "src/feedback.js"
-    ],
-    "direction": "Dark navy board, pastel colors with distinct geometric symbols, U-shaped receiver magnet, colored counters, short collection pulse; arc flights, short trails, squash/stretch, receiver pulses, collection token, completion sparks; gentle fades honor motion preference; press halos and compression, landing ripples and glints, inward charge sparks, damped 3px collection impulse, victory confetti",
-    "imageGenerationPrompts": []
-  }
+    "version":  "0.5.0",
+    "provenance":  "Original procedural audio and code-native UI; candy sprites generated with built-in image_gen, no external image references",
+    "generator":  "scripts/generate-audio.mjs",
+    "regenerate":  "node scripts/generate-audio.mjs",
+    "format":  "PCM WAV, mono, 16-bit, 22050 Hz",
+    "assets":  [
+                   {
+                       "file":  "pickup.wav",
+                       "durationMs":  110,
+                       "purpose":  "Each valid gather",
+                       "recipe":  "Rising sine, 6 ms attack, quadratic decay, amplitude 0.18"
+                   },
+                   {
+                       "file":  "complete.wav",
+                       "durationMs":  280,
+                       "purpose":  "Completed group of four",
+                       "recipe":  "E5/G#5/B5, staggered 0/60/110 ms, quadratic decay, summed peak below -6 dBFS; soft low pop on release"
+                   },
+                   {
+                       "file":  "land.wav",
+                       "durationMs":  75,
+                       "purpose":  "Individual landing",
+                       "recipe":  "Soft falling sine with quiet harmonic; pitch rises per arriving ball"
+                   },
+                   {
+                       "file":  "win.wav",
+                       "durationMs":  660,
+                       "purpose":  "Level cleared",
+                       "recipe":  "C5/E5/G5/C6 staggered 0/90/180/290 ms with soft attack and quadratic decay"
+                   }
+               ],
+    "visuals":  {
+                    "sources":  [
+                                    "src/main.js",
+                                    "src/levels.js",
+                                    "src/feedback.js",
+                                    "style.css",
+                                    "favicon.svg"
+                                ],
+                    "direction":  "Glossy mint, coral, violet and lemon candies; cream tray; translucent glass containers; plum text and lavender controls. Geometric symbols remain readable independently of color. Existing motion retained.",
+                    "generation":  "Built-in image_gen, 2026-10-13",
+                    "imageGenerationPrompts":  [
+                                                   "Create one production sprite sheet asset for a mobile candy sorting puzzle, exactly FOUR separate glossy hard candy discs in a precise 2 by 2 grid on a genuinely TRANSPARENT background. Square canvas. Each quadrant has one identical-size candy centered at (25%,25%), (75%,25%), (25%,75%), (75%,75%). Each disc occupies 31 percent of total canvas width and height, leaving generous completely transparent space between them.\nTop left: saturated mint turquoise candy. Top right: saturated watermelon coral candy. Bottom left: rich lavender purple candy. Bottom right: warm golden yellow candy. All four have the SAME perfectly round silhouette and front-facing orthographic camera, inflated lentil shape, smooth edible sugar glaze with luxurious broad soft specular reflection at upper left, subtle darker lower rim, clean softly lit center. Cute polished 3D casual game art, highly legible at 36 pixels diameter. Strong saturated midtones, restrained white highlight occupying under 15% of surface. Absolutely no faces, no symbols, no letters, no text, no wrappers, no sticks, no fruit, no sprinkles, no borders, no labels, no checkered backdrop, no ground plane. No cast shadows outside the discs. Only four isolated matching round candy objects. Preserve genuine alpha transparency.\n"
+                                               ],
+                    "normalization":  "scripts/normalize-candies.ps1; alpha bounds \u003e 8, fit 88px object in 96x96 transparent canvas",
+                    "images":  [
+                                   {
+                                       "file":  "assets/candy-mint.png",
+                                       "width":  96,
+                                       "height":  96,
+                                       "format":  "RGBA PNG",
+                                       "anchor":  [
+                                                      0.5,
+                                                      0.5
+                                                  ],
+                                       "displaySize":  [
+                                                           40,
+                                                           40
+                                                       ],
+                                       "bytes":  17093,
+                                       "sha256":  "F2F4A6CFD5B7C6FA1E00520296AF5CFCDEC3A95FC950E7274531681A388E83FD"
+                                   },
+                                   {
+                                       "file":  "assets/candy-coral.png",
+                                       "width":  96,
+                                       "height":  96,
+                                       "format":  "RGBA PNG",
+                                       "anchor":  [
+                                                      0.5,
+                                                      0.5
+                                                  ],
+                                       "displaySize":  [
+                                                           40,
+                                                           40
+                                                       ],
+                                       "bytes":  15832,
+                                       "sha256":  "6334EDF27D20412E9FBB9A4979101255A8CF4099023C52EF836F994E6CA03E5F"
+                                   },
+                                   {
+                                       "file":  "assets/candy-violet.png",
+                                       "width":  96,
+                                       "height":  96,
+                                       "format":  "RGBA PNG",
+                                       "anchor":  [
+                                                      0.5,
+                                                      0.5
+                                                  ],
+                                       "displaySize":  [
+                                                           40,
+                                                           40
+                                                       ],
+                                       "bytes":  16081,
+                                       "sha256":  "901C18A893831A0E831D4019BF04765675672C7AF2F6EE1E493136C60F96D78F"
+                                   },
+                                   {
+                                       "file":  "assets/candy-lemon.png",
+                                       "width":  96,
+                                       "height":  96,
+                                       "format":  "RGBA PNG",
+                                       "anchor":  [
+                                                      0.5,
+                                                      0.5
+                                                  ],
+                                       "displaySize":  [
+                                                           40,
+                                                           40
+                                                       ],
+                                       "bytes":  14831,
+                                       "sha256":  "97713FB464A50561D79BCB32BBF2BCDA896647CF18EC7D891279E7A998D71DDE"
+                                   }
+                               ]
+                }
 }

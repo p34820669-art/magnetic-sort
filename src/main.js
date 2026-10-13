@@ -1,6 +1,6 @@
-import { PuzzleSession, planMove, status } from './model.js?v=0.4.0';
-import { LEVELS, COLORS } from './levels.js?v=0.4.0';
-import { SortFeedback } from './feedback.js?v=0.4.0';
+import { PuzzleSession, planMove, status } from './model.js?v=0.5.0';
+import { LEVELS, COLORS } from './levels.js?v=0.5.0';
+import { SortFeedback } from './feedback.js?v=0.5.0';
 
 const ui = Object.fromEntries(['level-label', 'level-name', 'moves', 'levels', 'tip', 'progress',
   'color-progress', 'status-panel', 'next', 'message', 'undo', 'restart', 'sound', 'menu',
@@ -8,9 +8,9 @@ const ui = Object.fromEntries(['level-label', 'level-name', 'moves', 'levels', '
 const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
 const idleMessage = 'Удерживай стопку, чтобы увидеть маршрут.';
 const reasons = {
-  empty: 'Нажми на стопку с шарами, чтобы выбрать верхний цвет.',
+  empty: 'Нажми на стопку с конфетами, чтобы выбрать верхний цвет.',
   'no-space': 'Нужен пустой контейнер или одноцветный приёмник этого цвета.',
-  covered: 'Остальные шары этого цвета спрятаны. Сначала открой их.'
+  covered: 'Остальные конфеты этого цвета спрятаны. Сначала открой их.'
 };
 
 function tubeLayout(count) {
@@ -44,7 +44,8 @@ class SortScene extends Phaser.Scene {
     this.emptyLabels = new Map();
   }
   preload() {
-    for (const key of ['pickup', 'complete', 'land', 'win']) this.load.audio(key, `./assets/${key}.wav?v=0.4.0`);
+    for (const { texture } of Object.values(COLORS)) if (texture) this.load.image(texture, `./assets/${texture}.png?v=0.5.0`);
+    for (const key of ['pickup', 'complete', 'land', 'win']) this.load.audio(key, `./assets/${key}.wav?v=0.5.0`);
   }
   create() {
     this.markers = this.add.graphics().setDepth(5);
@@ -102,13 +103,17 @@ class SortScene extends Phaser.Scene {
       if (!this.busy) { this.pressed = null; this.drawBoard(); }
     });
     // FIT must also react when DOM text or screen orientation changes the parent.
-    this.resizeObserver = new ResizeObserver(() => this.scale.refresh());
+    this.resizeObserver = new ResizeObserver(() => {
+      // Phaser 4.2.1 refresh() sizes from cached parentSize before reading new bounds.
+      this.scale.getParentBounds();
+      this.scale.refresh();
+    });
     this.resizeObserver.observe(document.getElementById('game'));
 
     // Read-only diagnostics, available only to local QA. No game-state setters.
     if (new URLSearchParams(location.search).has('qa')) {
       window.__sortQA = { snapshot: () => ({
-        version: '0.4.0', state: structuredClone(this.session.state), busy: this.busy, level: this.levelIndex,
+        version: '0.5.0', state: structuredClone(this.session.state), busy: this.busy, level: this.levelIndex,
         status: status(this.session.state), history: this.session.history.length,
         renderer: this.game.renderer.type, receivers: receivers(this.session.state),
         preview: this.previewMove ? { ...this.previewMove } : null,
@@ -140,7 +145,7 @@ class SortScene extends Phaser.Scene {
     this.gentleMotion = this.motionPreference === 'gentle' || (this.motionPreference === 'auto' && motionQuery.matches);
     document.body.dataset.motion = this.gentleMotion ? 'gentle' : 'full';
     ui.motion.value = this.motionPreference;
-    ui['motion-note'].textContent = this.gentleMotion ? 'Мягкие переходы, без полётов и искр.' : 'Полёты шаров, пружинящие посадки и искры.';
+    ui['motion-note'].textContent = this.gentleMotion ? 'Мягкие переходы, без полётов и искр.' : 'Полёты конфет, пружинящие посадки и искры.';
     try { localStorage.setItem('magnetic-sort-motion', this.motionPreference); } catch { /* Optional preference. */ }
   }
   playSound(key, config) { if (!this.muted) this.sfx[key].play(config); }
@@ -156,7 +161,7 @@ class SortScene extends Phaser.Scene {
     this.say('Собери по четыре одинаковых и очисти поле.');
   }
   own(object) { this.boardObjects.push(object); return object; }
-  text(x, y, value, size = 14, color = '#9cacbf') {
+  text(x, y, value, size = 14, color = '#74677d') {
     const readableSize = Math.max(size, 10 / (this.scale.displaySize.width / 480));
     return this.own(this.add.text(x, y, value, { fontFamily: 'Segoe UI, Arial, sans-serif',
       fontSize: `${readableSize}px`, color }).setOrigin(.5));
@@ -180,27 +185,39 @@ class SortScene extends Phaser.Scene {
     const state = this.session.state;
     const targets = receivers(state);
     const background = this.own(this.add.graphics());
-    background.fillStyle(0x101c2d, .55).fillRoundedRect(0, 0, 480, 520, 18);
+    // Quiet confectionery tray: the candies carry the strongest contrast.
+    background.fillStyle(0xfff8ef).fillRoundedRect(0, 0, 480, 520, 24);
+    for (const [x, y, angle] of [[28, 102, -.5], [438, 142, .4], [38, 444, .5], [450, 392, -.5]]) {
+      background.lineStyle(4, 0xe9d9db, .65).lineBetween(x, y, x + 7, y + angle * 10);
+    }
     for (const [index, tube] of state.tubes.entries()) {
       const { x, top } = this.layout[index];
       const receiver = tube.length && targets[tube[0]] === index;
-      const tint = receiver ? COLORS[tube[0]].fill : 0x4d6580;
-      background.fillStyle(0x24354b, .8).fillRoundedRect(x - 38, top - 14, 76, 184, 18);
-      background.lineStyle(2, tint, .9).strokeRoundedRect(x - 38, top - 14, 76, 184, 18);
-      background.lineStyle(4, receiver ? tint : 0x71879d).lineBetween(x - 23, top - 14, x + 23, top - 14);
+      const tint = receiver ? COLORS[tube[0]].fill : 0xbdaacb;
+      background.fillStyle(0x9f7a9e, .09).fillEllipse(x + 2, top + 175, 80, 18);
+      background.fillStyle(0xffffff, .66).fillRoundedRect(x - 38, top - 14, 76, 184, 22);
+      background.fillStyle(receiver ? tint : 0xe9dff3, receiver ? .09 : .3).fillRoundedRect(x - 34, top - 10, 68, 177, 19);
+      background.lineStyle(2.5, tint, .85).strokeRoundedRect(x - 38, top - 14, 76, 184, 22);
+      background.lineStyle(3, 0xffffff, .9).lineBetween(x - 31, top + 9, x - 31, top + 134);
+      background.lineStyle(1.5, 0xffffff, .8).lineBetween(x + 30, top + 20, x + 30, top + 123);
+      background.fillStyle(0xffffff, .7).fillEllipse(x, top - 14, 74, 12);
+      background.lineStyle(2.5, tint, .85).strokeEllipse(x, top - 14, 74, 12);
+      background.lineStyle(2, 0xffffff, .9).lineBetween(x - 23, top - 18, x + 17, top - 18);
+      background.lineStyle(3, 0xffffff, .65).lineBetween(x - 18, top + 163, x + 18, top + 163);
       if (receiver) {
         // Large U-shaped magnet. The dedicated lesson explains the symbol.
         background.lineStyle(5, tint).beginPath().moveTo(x - 12, top - 46)
           .lineTo(x - 12, top - 29).lineTo(x + 12, top - 29).lineTo(x + 12, top - 46).strokePath();
-        background.lineStyle(5, 0xeaf1fb).lineBetween(x - 12, top - 46, x - 12, top - 41)
+        background.lineStyle(5, 0x655170).lineBetween(x - 12, top - 46, x - 12, top - 41)
           .lineBetween(x + 12, top - 46, x + 12, top - 41);
       }
       for (let slot = 0; slot < 4; slot++) {
         const point = this.position(index, slot);
-        background.lineStyle(1, 0x425771, .5).strokeCircle(point.x, point.y, 18);
+        background.lineStyle(1, 0xbca9c6, .22).strokeCircle(point.x, point.y, 18);
       }
-      this.fillLabels.set(index, this.text(x, top + 191, `${index + 1}  ·  ${tube.length}/4`, 16, receiver ? COLORS[tube[0]].css : '#9cacbf'));
-      if (!tube.length) this.emptyLabels.set(index, this.text(x, top + 76, 'пусто', 15, '#8097b0'));
+      background.fillStyle(0xffffff, .8).fillRoundedRect(x - 36, top + 178, 72, 26, 13);
+      this.fillLabels.set(index, this.text(x, top + 191, `${index + 1}  ·  ${tube.length}/4`, 16, receiver ? COLORS[tube[0]].ink : '#74677d'));
+      if (!tube.length) this.emptyLabels.set(index, this.text(x, top + 76, 'пусто', 15, '#86768f'));
       for (const [slot, color] of tube.entries()) {
         const point = this.position(index, slot);
         this.balls.set(`${index}:${slot}`, this.own(this.makeBall(point.x, point.y, color)));
@@ -210,7 +227,7 @@ class SortScene extends Phaser.Scene {
         if (planMove(state, index).valid) {
           background.lineStyle(2, COLORS[tube.at(-1)].fill, .65).strokeCircle(point.x, point.y, 23);
         } else {
-          this.text(x + 28, point.y - 9, '×', 18, '#b3bac6').setDepth(3);
+          this.text(x + 28, point.y - 9, '×', 18, '#86768f').setDepth(3);
         }
       }
 
@@ -242,20 +259,21 @@ class SortScene extends Phaser.Scene {
     }
   }
   makeBall(x, y, color) {
-    const ball = this.add.graphics({ x, y }).setDepth(2);
-    ball.fillStyle(0x050d18, .45).fillCircle(0, 3, 19);
-    ball.fillStyle(COLORS[color].fill).fillCircle(0, 0, 18);
-    ball.lineStyle(2, 0xffffff, .24).strokeCircle(0, 0, 16.5);
-    ball.fillStyle(0xffffff, .2).fillCircle(-6, -7, 5);
-    ball.fillStyle(0xffffff, .5).fillCircle(-7, -9, 2);
-    ball.lineStyle(2.5, 0x172335, .9);
+    const shadow = this.add.graphics();
+    shadow.fillStyle(0x67516c, .14).fillEllipse(0, 7, 37, 30);
+    const { texture } = COLORS[color];
+    const candy = texture ? this.add.image(0, 0, texture).setDisplaySize(40, 40)
+      : this.add.graphics().fillStyle(COLORS[color].fill).fillCircle(0, 0, 18);
+    const ball = this.add.graphics();
+    ball.lineStyle(2.3, 0x392442, .86);
     if (color === 'A') ball.strokeCircle(0, 0, 6);
     if (color === 'B') ball.strokeTriangle(0, -7, -7, 6, 7, 6);
     if (color === 'C') ball.strokeRect(-6, -6, 12, 12);
     if (color === 'D') ball.beginPath().moveTo(0, -8).lineTo(7, 0).lineTo(0, 8).lineTo(-7, 0).closePath().strokePath();
     if (color === 'E') ball.lineBetween(-7, 0, 7, 0).lineBetween(0, -7, 0, 7);
     if (color === 'F') ball.lineBetween(-7, -3, 7, -3).lineBetween(-7, 3, 7, 3);
-    return ball;
+    // Unit root scale keeps the existing press, flight and landing tweens intact.
+    return this.add.container(x, y, [shadow, candy, ball]).setDepth(2);
   }
   say(message) { ui.message.textContent = message; }
   clearPreview(resetMessage = true) {
@@ -315,7 +333,7 @@ class SortScene extends Phaser.Scene {
     if (move.dispatch) ui['color-progress'].querySelector(`[data-color="${move.color}"]`)?.classList.add('collect');
     if (status(this.session.state) === 'won') this.feedback.celebrate();
     if (status(this.session.state) === 'playing') {
-      this.say(move.dispatch ? 'Партия собрана! Место освободилось.' : 'Группа ждёт в приёмнике. Открой остальные шары.');
+      this.say(move.dispatch ? 'Партия собрана! Место освободилось.' : 'Группа ждёт в приёмнике. Открой остальные конфеты.');
     }
   }
   undo() {
@@ -329,9 +347,9 @@ class SortScene extends Phaser.Scene {
     const level = LEVELS[this.levelIndex], state = this.session.state;
     if (status(state) === 'won') return 'Все цвета собраны. Можно продолжить или отменить последний ход.';
     if (!state.moves || this.busy) return level.tip;
-    if (level.lesson === 'gather') return 'Теперь собери ○. Приёмник заберёт все открытые шары своего цвета.';
-    if (level.lesson === 'partial') return state.cleared.length ? 'Приёмник отмечен магнитом. Нажми на оставшийся цвет.' : 'Открой спрятанные шары другим цветом. Неполная группа никуда не пропадёт.';
-    if (level.lesson === 'receiver') return 'Одноцветный приёмник работает даже без пустых контейнеров. Собери оставшиеся шары.';
+    if (level.lesson === 'gather') return 'Теперь собери ○. Приёмник заберёт все открытые конфеты своего цвета.';
+    if (level.lesson === 'partial') return state.cleared.length ? 'Приёмник отмечен магнитом. Нажми на оставшийся цвет.' : 'Открой спрятанные конфеты другим цветом. Неполная группа никуда не пропадёт.';
+    if (level.lesson === 'receiver') return 'Одноцветный приёмник работает даже без пустых контейнеров. Собери оставшиеся конфеты.';
     if (level.lesson === 'space' && state.moves === 1 && state.tubes[3].join('') === 'AA') {
       return 'Сбор △ откроет □ в № 2 — новый приёмник. Сбор □ сейчас займёт последнее пустое место.';
     }
@@ -360,6 +378,7 @@ class SortScene extends Phaser.Scene {
       chip.className = `color-chip${done ? ' done' : ''}`;
       chip.dataset.color = color;
       chip.style.setProperty('--color', COLORS[color].css);
+      chip.style.setProperty('--ink', COLORS[color].ink || '#493454');
       chip.textContent = done ? '✓' : COLORS[color].symbol;
       chip.title = `${COLORS[color].name}: ${done ? 'собрано' : 'на поле'}`;
       chip.setAttribute('aria-label', chip.title);
@@ -381,8 +400,8 @@ class SortScene extends Phaser.Scene {
 }
 
 new Phaser.Game({
-  type: Phaser.AUTO, parent: 'game', width: 480, height: 520, backgroundColor: '#172335',
+  type: Phaser.AUTO, parent: 'game', width: 480, height: 520, backgroundColor: '#fff8ef',
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   scene: SortScene, input: { activePointers: 2 }, disableContextMenu: true,
-  title: 'Magnetic Sort', version: '0.4.0'
+  title: 'Magnetic Sort', version: '0.5.0'
 });
