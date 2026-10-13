@@ -1,63 +1,66 @@
 <!doctype html>
 <html lang="ru">
-  <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#fbf1e8">
-    <title>Магнитная сортировка</title>
-    <link rel="icon" href="./favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="./style.css?v=0.6.0">
-    <script defer src="./vendor/phaser.min.js"></script>
-    <script type="module" src="./src/main.js?v=0.6.0"></script>
-  </head>
-  <body>
-    <main class="game-shell">
-      <header class="title">
-        <div class="brand"><svg class="brand-mark" viewBox="0 0 34 40" aria-hidden="true"><defs><radialGradient id="mint" cx="30%" cy="22%" r="85%"><stop stop-color="#b3fff0"/><stop offset=".42" stop-color="#22c5b5"/><stop offset="1" stop-color="#13968f"/></radialGradient><radialGradient id="pink" cx="30%" cy="22%" r="85%"><stop stop-color="#ffd8df"/><stop offset=".42" stop-color="#ff7386"/><stop offset="1" stop-color="#e74568"/></radialGradient></defs><circle cx="13" cy="14" r="12" fill="url(#mint)"/><circle cx="21" cy="27" r="12" fill="url(#pink)" stroke="#fff8ef" stroke-width="2"/><path d="M7 7l5-2M15 20l5-2" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".7"/></svg><h1>Магнитная<br>сортировка</h1></div>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#fbf1e8">
+  <title>Магнитная сортировка</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./style.css?v=0.7.0">
+  <script defer src="./vendor/phaser.min.js"></script>
+  <script type="module" src="./src/main.js?v=0.7.0"></script>
+</head>
+<body>
+  <main class="game-shell">
+    <section class="game-card" aria-label="Игра">
+      <header class="hud">
+        <div class="level-heading"><span>Уровень</span><strong id="level-label">1 / 6</strong></div>
+        <div class="progress-row"><span id="progress" class="sr-only">0 / 2</span><div id="color-progress" aria-label="Цветовые партии"></div></div>
         <div class="toolbar">
-          <button id="sound" aria-label="Выключить звук" aria-pressed="false" title="Выключить звук">Звук: вкл</button>
-          <button id="menu" aria-haspopup="dialog">Уровни</button>
+          <button id="help" class="icon-button" aria-label="Как играть" aria-haspopup="dialog">?</button>
+          <button id="menu" class="icon-button" aria-label="Меню игры" aria-haspopup="dialog"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+        </div>
+        <div id="status-panel" class="notice" hidden>
+          <p id="message" role="status" aria-live="polite"></p>
+          <button id="dismiss-notice" class="icon-button" aria-label="Скрыть подсказку">✕</button>
         </div>
       </header>
-      <section class="game-card" aria-label="Игра">
-        <div class="intro">
-          <div class="level-heading">
-            <div><p class="eyebrow" id="level-label">УРОВЕНЬ 1 / 6</p><h2 id="level-name">Первый сбор</h2></div>
-            <p class="move-count">Ходы <strong id="moves">0</strong></p>
-          </div>
-          <p id="tip" class="tip"></p>
-          <div class="progress-row"><span>Собрано <strong id="progress">0 / 2</strong></span><div id="color-progress" aria-label="Цветовые партии"></div></div>
+      <div class="board-wrap">
+        <div id="game" aria-label="Поле сортировки. Клавиши 1–6 выбирают стопку."></div>
+        <section id="victory" class="victory" hidden aria-labelledby="victory-title">
+          <div class="victory-copy" role="status" aria-live="polite"><h2 id="victory-title">Готово!</h2><p id="victory-detail"></p></div>
+          <div class="gift-box" aria-hidden="true"><div id="candy-box" class="candy-box"></div><span class="gift-seal">✓</span></div>
+        </section>
+      </div>
+      <div class="bottom-panel">
+        <div class="controls">
+          <button id="undo" title="Отменить ход (Z)" disabled>↶ Отменить</button>
+          <button id="next" class="primary" hidden>Дальше →</button>
         </div>
-        <div class="board-wrap">
-          <div id="game" aria-label="Поле сортировки. Клавиши 1–6 выбирают стопку."></div>
-          <section id="victory" class="victory" hidden aria-labelledby="victory-title">
-            <div class="victory-copy" role="status" aria-live="polite"><h2 id="victory-title">Готово!</h2><p id="victory-detail"></p></div>
-            <div class="gift-box" aria-hidden="true"><div class="gift-lid"></div><div id="candy-box" class="candy-box"></div><span class="gift-seal">✓</span></div>
-          </section>
-        </div>
-        <div class="bottom-panel">
-          <div id="status-panel" class="status-panel">
-            <p id="message" role="status" aria-live="polite">Собери по четыре одинаковых и очисти поле.</p>
-          </div>
-          <div class="controls">
-            <button id="undo" title="Отменить ход (Z)" disabled>↶ Отменить</button>
-            <button id="restart" title="Начать заново (R)">↻ Заново</button>
-            <button id="next" class="primary" hidden>Дальше →</button>
-          </div>
-        </div>
-      </section>
-      <dialog id="level-dialog" aria-labelledby="menu-title">
-        <div class="dialog-heading"><h2 id="menu-title">Выбери уровень</h2><button id="close-menu" aria-label="Закрыть меню">✕</button></div>
-        <p class="menu-help">Собери по четыре одинаковых и очисти поле.</p>
-        <nav id="levels" aria-label="Выбор уровня"></nav>
-        <label class="motion-setting" for="motion">Анимация
-          <select id="motion"><option value="auto">Как на устройстве</option><option value="full">Полная</option><option value="gentle">Мягкая</option></select>
-        </label>
-        <p id="motion-note" class="menu-help"></p>
-        <p class="menu-help">Удерживай стопку, чтобы увидеть маршрут. Уведи палец за её край, чтобы отменить касание.</p>
-        <p class="shortcuts">Клавиши: 1–6 — стопка · Z — отменить · R — заново · v0.6.0</p>
-      </dialog>
-      <noscript>Для запуска игры включите JavaScript в браузере.</noscript>
-    </main>
-  </body>
+      </div>
+    </section>
+    <dialog id="level-dialog" aria-labelledby="menu-title">
+      <div class="dialog-heading"><h1 id="menu-title">Магнитная сортировка</h1><button id="close-menu" class="icon-button" aria-label="Закрыть меню">✕</button></div>
+      <div class="menu-actions">
+        <button id="sound" aria-label="Выключить звук" aria-pressed="false">Звук: вкл</button>
+        <button id="restart" title="Начать заново (R)">↻ Заново</button>
+      </div>
+      <h2 class="menu-subtitle">Уровни</h2>
+      <nav id="levels" aria-label="Выбор уровня"></nav>
+      <label class="motion-setting" for="motion">Анимация
+        <select id="motion"><option value="auto">Как на устройстве</option><option value="full">Полная</option><option value="gentle">Мягкая</option></select>
+      </label>
+      <p id="motion-note" class="menu-help"></p>
+      <p class="shortcuts">1–6 — стопка · Z — отменить · R — заново · v0.7.0</p>
+    </dialog>
+    <dialog id="help-dialog" aria-labelledby="level-name">
+      <div class="dialog-heading"><h2 id="level-name">Первый сбор</h2><button id="close-help" class="icon-button" aria-label="Закрыть помощь">✕</button></div>
+      <p id="tip" class="help-tip"></p>
+      <p class="menu-help">Нажми на стопку: открытые конфеты верхнего цвета соберутся автоматически. Четыре одинаковых уходят с поля.</p>
+      <p class="menu-help">Магнит отмечает одноцветный приёмник. Удерживай стопку, чтобы увидеть маршрут; уведи палец за её край, чтобы отменить касание.</p>
+      <p class="menu-help">Если места не осталось, отмени ход и попробуй другой цвет.</p>
+    </dialog>
+    <noscript>Для запуска игры включите JavaScript в браузере.</noscript>
+  </main>
+</body>
 </html>

@@ -1,4 +1,4 @@
-import { COLORS } from './levels.js?v=0.6.0';
+import { COLORS } from './levels.js?v=0.7.0';
 
 // Presentation only. The resolver owns all moves; feedback never changes puzzle state.
 export class SortFeedback {
@@ -134,7 +134,7 @@ export class SortFeedback {
   label(x, y, message, color) {
     const label = this.own(this.scene.add.text(x, y, message, { fontFamily: 'Segoe UI, Arial, sans-serif',
       fontSize: '24px', fontStyle: 'bold', color, stroke: '#fffaf3', strokeThickness: 5 })
-      .setResolution(this.scene.game.canvas.width / 480).setOrigin(.5).setDepth(35));
+      .setResolution(this.scene.cameras.main.zoom).setOrigin(.5).setDepth(35));
     this.animate(label, { y: y - (this.gentle ? 0 : 20), alpha: 0, delay: 260, duration: 340,
       ease: 'Sine.easeOut' }).then(() => this.remove(label));
   }
@@ -181,10 +181,11 @@ export class SortFeedback {
         const end = { x: target.x, y: scene.layout[transfer.to].top - 24 * scene.layout[transfer.to].scale };
         const arc = { progress: 0 };
         const dx = end.x - start.x;
+        const detour = Math.abs(dx) < 30 && Math.abs(end.y - start.y) > 100 ? (start.x < scene.view.width / 2 ? 90 : -90) : 0;
         const controls = [Math.max(14, start.y - 48), Math.max(14, end.y - 48)];
         await this.animate(arc, { progress: 1, duration: 230, ease: 'Sine.easeInOut', onUpdate: () => {
           const t = arc.progress, u = 1 - t;
-          ball.x = u ** 3 * start.x + 3 * u * u * t * (start.x + dx * .35) + 3 * u * t * t * (end.x - dx * .35) + t ** 3 * end.x;
+          ball.x = u ** 3 * start.x + 3 * u * u * t * (start.x + dx * .35 + detour) + 3 * u * t * t * (end.x - dx * .35 + detour) + t ** 3 * end.x;
           ball.y = u ** 3 * start.y + 3 * u * u * t * controls[0] + 3 * u * t * t * controls[1] + t ** 3 * end.y;
           ball.setScale(1.08, .94);
           trace();
@@ -228,7 +229,7 @@ export class SortFeedback {
       // A DOM token can cross the canvas edge and actually reach the HUD chip.
       const rect = scene.game.canvas.getBoundingClientRect();
       const chip = document.querySelector(`[data-color="${move.color}"]`).getBoundingClientRect();
-      const from = { x: rect.x + x * rect.width / 480 - 14, y: rect.y + centerY * rect.height / 520 - 14 };
+      const from = { x: rect.x + x * rect.width / scene.view.width - 14, y: rect.y + centerY * rect.height / scene.view.height - 14 };
       const to = { x: chip.x + chip.width / 2 - 14, y: chip.y + chip.height / 2 - 14 };
       const token = document.createElement('span');
       token.className = 'collection-token';
@@ -254,23 +255,24 @@ export class SortFeedback {
   }
   celebrate() {
     const scene = this.scene;
+    const cx = scene.view.width / 2, cy = scene.view.height * .48;
     scene.playSound('win', { volume: .8 });
-    const halo = this.own(scene.add.graphics({ x: 240, y: 246 }).setDepth(30).setName('victory-halo'));
+    const halo = this.own(scene.add.graphics({ x: cx, y: cy }).setDepth(30).setName('victory-halo'));
     halo.fillStyle(0x35d3b0, .08).fillCircle(0, 0, 105).fillStyle(0x35d3b0, .1).fillCircle(0, 0, 75);
     this.animate(halo, { scale: this.gentle ? 1 : 1.8, alpha: 0, duration: 950, ease: 'Sine.easeOut' }).then(() => this.remove(halo));
     if (!this.gentle) for (let index = 0; index < 32; index++) {
-      const side = index % 2 ? 1 : -1, startX = side < 0 ? 80 : 400;
-      const confetti = this.own(scene.add.graphics({ x: startX, y: 220 }).setDepth(36).setName('confetti'));
+      const side = index % 2 ? 1 : -1, startX = cx + side * scene.view.width * .33;
+      const confetti = this.own(scene.add.graphics({ x: startX, y: cy }).setDepth(36).setName('confetti'));
       confetti.fillStyle([0x35d3b0, 0xff8f78, 0xffd46f, 0x91a7ff][index % 4]).fillRect(-3, -5, 6, 10);
       confetti.progress = 0;
       this.animate(confetti, { progress: 1, rotation: side * (4 + index % 4), duration: 1050 + index % 5 * 80,
         ease: 'Linear', onUpdate: () => {
           const t = confetti.progress;
-          confetti.setPosition(startX - side * (40 + index % 8 * 19) * t, 220 - (130 + index % 6 * 23) * t + 340 * t * t);
+          confetti.setPosition(startX - side * (40 + index % 8 * 19) * t, cy - (130 + index % 6 * 23) * t + scene.view.height * .65 * t * t);
           confetti.setAlpha(Math.min(1, (1 - t) * 4)).setScale(Math.max(.2, Math.abs(Math.cos(t * Math.PI * 3))), 1);
         } }).then(() => this.remove(confetti));
     }
-    this.burst(185, 247, 0x35d3b0, 10);
-    this.burst(295, 247, 0xffd46f, 10);
+    this.burst(cx - 55, cy, 0x35d3b0, 10);
+    this.burst(cx + 55, cy, 0xffd46f, 10);
   }
 }

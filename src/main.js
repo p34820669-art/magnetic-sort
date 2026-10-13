@@ -1,26 +1,38 @@
-import { PuzzleSession, planMove, status } from './model.js?v=0.6.0';
-import { LEVELS, COLORS } from './levels.js?v=0.6.0';
-import { SortFeedback } from './feedback.js?v=0.6.0';
+import { PuzzleSession, planMove, status } from './model.js?v=0.7.0';
+import { LEVELS, COLORS } from './levels.js?v=0.7.0';
+import { SortFeedback } from './feedback.js?v=0.7.0';
 
-const ui = Object.fromEntries(['level-label', 'level-name', 'moves', 'levels', 'tip', 'progress',
+const ui = Object.fromEntries(['level-label', 'level-name', 'levels', 'tip', 'progress',
   'color-progress', 'status-panel', 'next', 'message', 'undo', 'restart', 'sound', 'menu',
-  'level-dialog', 'close-menu', 'motion', 'motion-note', 'victory', 'victory-title', 'victory-detail', 'candy-box'].map(id => [id, document.getElementById(id)]));
+  'level-dialog', 'close-menu', 'help', 'help-dialog', 'close-help', 'dismiss-notice', 'motion', 'motion-note', 'victory', 'victory-title', 'victory-detail', 'candy-box'].map(id => [id, document.getElementById(id)]));
 // Phaser 4.2.1 has no GameConfig.resolution: render a denser canvas, keep logical coordinates.
 const renderDensity = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
 const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
-const idleMessage = 'Удерживай стопку, чтобы увидеть маршрут.';
+const lessons = {
+  gather: 'Нажми на △. Четыре одинаковых конфеты — готово!',
+  partial: 'Собери △. Спрятанные конфеты пока останутся.',
+  receiver: 'Нажми △ в № 2. Магнит отмечает приёмник.',
+  practice: 'Открывай спрятанные цвета, собирая верхние.',
+  space: 'Оставляй место для сбора. Ошибку можно отменить.',
+  challenge: 'Выбирай порядок цветов и собери всё поле.'
+};
 const reasons = {
   empty: 'Нажми на стопку с конфетами, чтобы выбрать верхний цвет.',
-  'no-space': 'Нужен пустой контейнер или одноцветный приёмник этого цвета.',
-  covered: 'Остальные конфеты этого цвета спрятаны. Сначала открой их.'
+  'no-space': 'Нет приёмника. Освободи место или отмени ход.',
+  covered: 'Этот цвет спрятан. Сначала открой его другим сбором.'
 };
 
-function tubeLayout(count) {
-  const columns = count <= 4 ? count : Math.ceil(count / 2);
+function boardView() {
+  const wide = matchMedia('(orientation: landscape) and (max-height: 500px) and (min-width: 600px)').matches;
+  return wide ? { width: 720, height: 320, wide } : { width: 480, height: 720, wide };
+}
+function tubeLayout(count, view) {
+  const columns = view.wide ? count : Math.ceil(count / 2);
   return Array.from({ length: count }, (_, index) => {
     const row = Math.floor(index / columns);
     const inRow = Math.min(columns, count - row * columns);
-    return { x: (index % columns + .5) * (480 / inRow), top: count <= 4 ? 144 : 56 + row * 252, scale: count <= 4 ? 1.25 : 1 };
+    return { x: (index % columns + .5) * (view.width / inRow),
+      top: view.wide ? 62 : 72 + row * 340, scale: view.wide ? 1.25 : count <= 4 ? 1.36 : 1.3 };
   });
 }
 function receivers(state) {
@@ -36,6 +48,9 @@ function receivers(state) {
 class SortScene extends Phaser.Scene {
   constructor() { super('sort'); }
   init() {
+    this.view = boardView();
+    this.seenLessons = new Set();
+    try { this.seenLessons = new Set(JSON.parse(localStorage.getItem('magnetic-sort-lessons') || '[]')); } catch { /* Optional guidance history. */ }
     this.busy = false;
     this.boardObjects = [];
     this.balls = new Map();
@@ -46,8 +61,8 @@ class SortScene extends Phaser.Scene {
     this.emptyLabels = new Map();
   }
   preload() {
-    for (const { texture } of Object.values(COLORS)) if (texture) this.load.image(texture, `./assets/${texture}.png?v=0.6.0`);
-    for (const key of ['pickup', 'complete', 'land', 'win']) this.load.audio(key, `./assets/${key}.wav?v=0.6.0`);
+    for (const { texture } of Object.values(COLORS)) if (texture) this.load.image(texture, `./assets/${texture}.png?v=0.7.0`);
+    for (const key of ['pickup', 'complete', 'land', 'win']) this.load.audio(key, `./assets/${key}.wav?v=0.7.0`);
   }
   create() {
     this.cameras.main.setOrigin(0, 0).setZoom(renderDensity);
@@ -70,7 +85,7 @@ class SortScene extends Phaser.Scene {
     const closeMenu = () => {
       ui['level-dialog'].close();
       // The dialog's close event is queued; the visible board must be ready immediately.
-      this.input.enabled = true;
+      this.input.enabled = !ui['help-dialog'].open;
     };
     for (let index = 0; index < LEVELS.length; index++) {
       const button = document.createElement('button');
@@ -86,12 +101,23 @@ class SortScene extends Phaser.Scene {
       ui['level-dialog'].showModal();
     });
     ui['close-menu'].addEventListener('click', closeMenu);
-    ui['level-dialog'].addEventListener('close', () => { this.input.enabled = true; });
+    const syncInput = () => { this.input.enabled = !ui['level-dialog'].open && !ui['help-dialog'].open; };
+    ui['level-dialog'].addEventListener('close', syncInput);
+    ui.help.addEventListener('click', () => {
+      if (this.busy) return;
+      this.pressed = null;
+      this.clearPreview();
+      this.input.enabled = false;
+      ui['help-dialog'].showModal();
+    });
+    ui['close-help'].addEventListener('click', () => { ui['help-dialog'].close(); syncInput(); });
+    ui['help-dialog'].addEventListener('close', syncInput);
+    ui['dismiss-notice'].addEventListener('click', () => this.hideNotice());
     ui.undo.addEventListener('click', () => this.undo());
-    ui.restart.addEventListener('click', () => this.restart());
+    ui.restart.addEventListener('click', () => { closeMenu(); this.restart(); });
     ui.next.addEventListener('click', () => this.openLevel((this.levelIndex + 1) % LEVELS.length));
     this.input.keyboard.on('keydown', event => {
-      if (event.repeat || event.ctrlKey || event.metaKey || event.altKey || ui['level-dialog'].open) return;
+      if (event.repeat || event.ctrlKey || event.metaKey || event.altKey || ui['level-dialog'].open || ui['help-dialog'].open) return;
       if (/^[1-6]$/.test(event.key)) this.choose(Number(event.key) - 1);
       if (event.code === 'KeyZ') this.undo();
       if (event.code === 'KeyR') this.restart();
@@ -117,7 +143,7 @@ class SortScene extends Phaser.Scene {
     // Read-only diagnostics, available only to local QA. No game-state setters.
     if (new URLSearchParams(location.search).has('qa')) {
       window.__sortQA = { snapshot: () => ({
-        version: '0.6.0', state: structuredClone(this.session.state), busy: this.busy, level: this.levelIndex,
+        version: '0.7.0', state: structuredClone(this.session.state), busy: this.busy, level: this.levelIndex,
         inputEnabled: this.input.enabled,
         status: status(this.session.state), history: this.session.history.length,
         renderer: this.game.renderer.type, receivers: receivers(this.session.state),
@@ -131,6 +157,7 @@ class SortScene extends Phaser.Scene {
           decoded: ['pickup', 'complete', 'land', 'win'].every(key => this.cache.audio.exists(key)),
           context: this.sound.context?.state ?? 'html5' },
         centers: this.layout.map(({ x, top, scale }) => ({ x, y: top + 80 * scale })),
+        view: { ...this.view },
         presentation: { density: renderDensity, canvas: [this.game.canvas.width, this.game.canvas.height],
           tubeScale: this.layout[0].scale, victoryVisible: !ui.victory.hidden }
       }) };
@@ -158,18 +185,20 @@ class SortScene extends Phaser.Scene {
   playSound(key, config) { if (!this.muted) this.sfx[key].play(config); }
   openLevel(index) {
     if (this.busy) return;
+    this.hideNotice();
     this.feedback.reset();
     this.levelIndex = index;
     this.session = new PuzzleSession(LEVELS[index].tubes);
-    this.layout = tubeLayout(this.session.state.tubes.length);
+    this.layout = tubeLayout(this.session.state.tubes.length, this.view);
     this.pressed = null;
     this.drawBoard();
     this.refresh();
-    this.say('Собери по четыре одинаковых и очисти поле.');
+    const lesson = LEVELS[index].lesson;
+    if (!this.seenLessons.has(lesson)) this.say(lessons[lesson], 'coach');
   }
   own(object) { this.boardObjects.push(object); return object; }
   text(x, y, value, size = 14, color = '#74677d') {
-    const readableSize = Math.max(size, 10 / (this.scale.displaySize.width / 480));
+    const readableSize = Math.max(size, 10 / (this.scale.displaySize.width / this.view.width));
     return this.own(this.add.text(x, y, value, { fontFamily: 'Segoe UI, Arial, sans-serif',
       fontSize: `${readableSize}px`, color }).setResolution(renderDensity).setOrigin(.5));
   }
@@ -196,9 +225,9 @@ class SortScene extends Phaser.Scene {
     const targets = receivers(state);
     const background = this.own(this.add.graphics());
     // Quiet confectionery tray: the candies carry the strongest contrast.
-    background.fillStyle(0xfff8ef).fillRoundedRect(0, 0, 480, 520, 24);
+    background.fillStyle(0xfff8ef).fillRoundedRect(0, 0, this.view.width, this.view.height, 24);
     if (status(state) === 'won') return;
-    for (const [x, y, angle] of [[28, 102, -.5], [438, 142, .4], [38, 444, .5], [450, 392, -.5]]) {
+    for (const [x, y, angle] of [[20, this.view.height * .4, -.5], [this.view.width - 20, this.view.height * .65, .4]]) {
       background.lineStyle(4, 0xe9d9db, .65).lineBetween(x, y, x + 7, y + angle * 10);
     }
     for (const [index, tube] of state.tubes.entries()) {
@@ -287,19 +316,42 @@ class SortScene extends Phaser.Scene {
   fitBoard() {
     const rect = document.getElementById('game').getBoundingClientRect();
     const bounds = `${rect.x}:${rect.y}:${rect.width}:${rect.height}`;
-    if (bounds === this.boardBounds) return;
+    const nextView = boardView();
+    const viewChanged = !this.busy && nextView.wide !== this.view.wide;
+    if (bounds === this.boardBounds && !viewChanged) return;
     this.boardBounds = bounds;
     // Update synchronously when the HUD changes; ResizeObserver follows a frame later.
     // Phaser 4.2.1 refresh() reads cached parentSize, so update its bounds first.
     this.scale.getParentBounds();
-    this.scale.refresh();
+    if (viewChanged) {
+      this.feedback.reset();
+      this.view = nextView;
+      this.layout = tubeLayout(this.session.state.tubes.length, this.view);
+      this.scale.setGameSize(this.view.width * renderDensity, this.view.height * renderDensity);
+    } else this.scale.refresh();
   }
-  say(message) { ui.message.textContent = message; this.fitBoard(); }
+  hideNotice() {
+    clearTimeout(this.noticeTimer);
+    if (ui['status-panel'].dataset.kind === 'coach' && this.levelIndex !== undefined) {
+      this.seenLessons.add(LEVELS[this.levelIndex].lesson);
+      try { localStorage.setItem('magnetic-sort-lessons', JSON.stringify([...this.seenLessons])); } catch { /* Optional. */ }
+    }
+    ui['status-panel'].hidden = true;
+    document.querySelector('.hud').classList.remove('has-notice');
+    ui['status-panel'].dataset.kind = '';
+  }
+  say(message, kind = 'error') {
+    this.hideNotice();
+    ui.message.textContent = message;
+    ui['status-panel'].dataset.kind = kind;
+    ui['status-panel'].hidden = false;
+    document.querySelector('.hud').classList.add('has-notice');
+    if (kind === 'error') this.noticeTimer = setTimeout(() => this.hideNotice(), 3500);
+  }
   clearPreview(resetMessage = true) {
     this.feedback.releasePress();
     this.markers.clear();
     this.previewMove = null;
-    if (resetMessage && status(this.session.state) === 'playing') this.say(idleMessage);
   }
   preview(index) {
     if (this.busy || status(this.session.state) !== 'playing') return;
@@ -325,17 +377,17 @@ class SortScene extends Phaser.Scene {
       this.markers.strokeCircle(point.x, point.y, 21 * s);
     }
     this.markers.strokeRoundedRect(destination.x - 41 * s, destination.top - 17 * s, 82 * s, 190 * s, 20 * s);
-    const total = this.session.state.tubes[move.destination].length + move.transfers.length;
-    this.say(`В приёмник № ${move.destination + 1} → ${total}/4${move.dispatch ? ' · партия готова!' : ' · остальные пока спрятаны.'}`);
   }
   tween(targets, config) {
     return new Promise(resolve => this.tweens.add({ targets, ...config, onComplete: resolve }));
   }
   delay(duration) { return new Promise(resolve => this.time.delayedCall(duration, resolve)); }
   async choose(index) {
-    if (this.busy || ui['level-dialog'].open || status(this.session.state) !== 'playing') return;
+    if (this.busy || ui['level-dialog'].open || ui['help-dialog'].open || status(this.session.state) !== 'playing') return;
+    if (index < 0 || index >= this.session.state.tubes.length) return;
     const planned = planMove(this.session.state, index);
     if (!planned.valid) { this.feedback.reject(index); this.say(reasons[planned.reason]); return; }
+    this.hideNotice();
     this.feedback.reset();
     this.feedback.gentle = this.gentleMotion;
     this.preview(index);
@@ -352,15 +404,13 @@ class SortScene extends Phaser.Scene {
     this.refresh();
     if (move.dispatch) ui['color-progress'].querySelector(`[data-color="${move.color}"]`)?.classList.add('collect');
     if (status(this.session.state) === 'won') this.feedback.celebrate();
-    if (status(this.session.state) === 'playing') {
-      this.say(move.dispatch ? 'Партия собрана! Место освободилось.' : 'Группа ждёт в приёмнике. Открой остальные конфеты.');
-    }
   }
   undo() {
     if (this.busy || !this.session.undo()) return;
     this.feedback.reset();
+    this.hideNotice();
     this.pressed = null;
-    this.drawBoard(); this.refresh(); this.say('Ход отменён. Попробуй другой цвет.');
+    this.drawBoard(); this.refresh();
   }
   restart() { if (!this.busy) this.openLevel(this.levelIndex); }
   tutorialText() {
@@ -383,15 +433,15 @@ class SortScene extends Phaser.Scene {
     ui.victory.hidden = !won;
     document.getElementById('game').setAttribute('aria-hidden', String(won));
     const colors = [...new Set(this.session.initial.tubes.flat())].sort();
-    ui['level-label'].textContent = `УРОВЕНЬ ${this.levelIndex + 1} / ${LEVELS.length}`;
+    ui['level-label'].textContent = `${this.levelIndex + 1} / ${LEVELS.length}`;
     ui['level-name'].textContent = LEVELS[this.levelIndex].name;
-    ui.moves.textContent = state.moves;
     ui.tip.textContent = this.tutorialText();
     ui.progress.textContent = `${state.cleared.length} / ${colors.length}`;
     ui.undo.disabled = this.busy || this.session.history.length === 0;
     ui.restart.disabled = this.busy;
     ui.next.disabled = this.busy;
     ui.menu.disabled = this.busy;
+    ui.help.disabled = this.busy;
     ui.undo.classList.toggle('rescue', !this.busy && result === 'stuck');
     [...ui.levels.children].forEach((button, index) => {
       if (index === this.levelIndex) button.setAttribute('aria-current', 'step');
@@ -408,10 +458,7 @@ class SortScene extends Phaser.Scene {
       chip.setAttribute('aria-label', chip.title);
       return chip;
     }));
-    ui['status-panel'].classList.toggle('stuck', !this.busy && result === 'stuck');
-    ui['status-panel'].classList.toggle('won', !this.busy && result === 'won');
     ui.next.hidden = this.busy || result !== 'won';
-    ui.restart.hidden = !this.busy && result === 'won';
     if (result === 'won' && !this.busy) {
       const finished = this.levelIndex === LEVELS.length - 1;
       ui.next.textContent = finished ? 'Ещё раз →' : 'Дальше →';
@@ -421,25 +468,25 @@ class SortScene extends Phaser.Scene {
       ui['candy-box'].replaceChildren(...colors.flatMap(color => Array.from({ length: 4 }, () => {
         const cell = document.createElement('span'), candy = document.createElement('img'), symbol = document.createElement('span');
         cell.className = 'gift-candy';
-        candy.src = `./assets/${COLORS[color].texture}.png?v=0.6.0`;
+        candy.src = `./assets/${COLORS[color].texture}.png?v=0.7.0`;
         candy.alt = '';
         candy.width = candy.height = 96;
         symbol.textContent = COLORS[color].symbol;
         cell.append(candy, symbol);
         return cell;
       })));
-      this.say('');
+      this.hideNotice();
     }
     if (result === 'stuck' && !this.busy) {
-      this.say('Нет места для сбора. Отмени ход и попробуй открыть приёмник.');
+      this.say('Нет места. Отмени ход и открой приёмник.', 'stuck');
     }
     this.fitBoard();
   }
 }
 
 new Phaser.Game({
-  type: Phaser.AUTO, parent: 'game', width: 480 * renderDensity, height: 520 * renderDensity, backgroundColor: '#fff8ef',
+  type: Phaser.AUTO, parent: 'game', width: boardView().width * renderDensity, height: boardView().height * renderDensity, backgroundColor: '#fff8ef',
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   scene: SortScene, input: { activePointers: 2 }, disableContextMenu: true,
-  title: 'Magnetic Sort', version: '0.6.0'
+  title: 'Magnetic Sort', version: '0.7.0'
 });
