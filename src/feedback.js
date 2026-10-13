@@ -1,4 +1,4 @@
-import { COLORS } from './levels.js?v=0.11.0';
+import { COLORS } from './levels.js?v=0.12.0';
 
 // Presentation only. The resolver owns all moves; feedback never changes puzzle state.
 export class SortFeedback {

@@ -86,3 +86,70 @@ dialog::backdrop { background: #4b365c70; }
 }
 body[data-motion="gentle"] button { transition: none; }
 body[data-motion="gentle"] button:active { transform: none; }
+
+/* Candy world: one illustrated scene, tactile controls and compact gameplay HUD. */
+:root { color: #493377; background: #559de8; }
+body { background: radial-gradient(ellipse at 50% 30%, #90e5f5, #6084d4 80%); }
+.game-shell { background: #64c7f3 url('./assets/candy-world.png?v=0.12.0') center / cover no-repeat; box-shadow: 0 0 70px #30357f45; }
+.game-card { background: transparent; border-color: transparent; border-radius: 0; box-shadow: none; }
+.hud { padding: 0 2px; gap: 10px; }
+.level-heading { justify-self: center; min-width: 138px; padding: 5px 16px; border: 1px solid #dfb0ff; border-radius: 19px;
+  background: linear-gradient(#b45df4 0%, #9a42e2 43%, #7830bf 100%); box-shadow: inset 0 2px 2px #ffffff73, inset 0 -3px 3px #4b148766, 0 3px 0 #4c278c, 0 5px 8px #294d8b35; }
+.level-heading span { color: #fff7ff; font-size: 10px; font-weight: 850; text-transform: uppercase; letter-spacing: .8px; text-shadow: 0 1px 1px #6b268e; }
+.level-heading strong { color: #fff; font-size: 21px; font-weight: 900; text-shadow: 0 2px 0 #5a218e; }
+button { position: relative; font-weight: 800; color: #fff; border: 1px solid #f5c3ff;
+  background: linear-gradient(#b675f5, #964bdf 52%, #7835bd); text-shadow: 0 1px 1px #542080;
+  box-shadow: inset 0 2px 2px #ffffff7d, inset 0 -3px 2px #64348b70, 0 3px 0 #573185, 0 5px 7px #30437a30; }
+button:hover:not(:disabled) { background: linear-gradient(#ca8cff, #a862ed 52%, #9145d0); }
+button:active:not(:disabled) { box-shadow: inset 0 2px 2px #ffffff70, 0 1px 0 #543186; }
+button:focus-visible { outline-color: #fff; box-shadow: 0 0 0 5px #6544ac; }
+button:disabled { opacity: .65; filter: saturate(.45); box-shadow: inset 0 1px 2px #ffffff7d, 0 3px 0 #7158aa; }
+.icon-button { border-radius: 50%; border-color: #ffb6e2; color: #fff; font-size: 25px; font-weight: 900;
+  background: radial-gradient(ellipse at 35% 8%, #ffb7e3 0%, #ff60be 42%, #e32e93 100%);
+  box-shadow: inset 0 2px 2px #ffffffa6, inset 0 -3px 3px #bb1b7066, 0 3px 0 #a22683, 0 5px 8px #3d447635; }
+.icon-button:hover:not(:disabled) { background: linear-gradient(#ff9ed9, #f044a9); }
+.icon-button svg { stroke-width: 2.8; filter: drop-shadow(0 1px 0 #9f217e); }
+.board-wrap { overflow: hidden; background: transparent; border-radius: 18px; }
+.board-wrap::after { border: 0; box-shadow: none; }
+.board-wrap::before { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse at center, #dcfaff30 0%, #dcfaff12 55%, transparent 85%); }
+.notice { background: linear-gradient(#fff9fe, #f3e5ff); border: 1px solid #dcb6f6; box-shadow: 0 3px 0 #8b67be4d; }
+.notice p { color: #563d7b; font-weight: 650; }
+.notice .icon-button { color: #80519e; box-shadow: none; text-shadow: none; }
+.notice[data-kind="error"], .notice[data-kind="stuck"] { background: linear-gradient(#fff7dc, #ffe5a4); border-color: #fff2c9; }
+.bottom-panel { padding-bottom: 4px; }
+#undo { flex-basis: 156px; font-size: 15px; border-radius: 18px; }
+#undo.rescue { color: #fff; background: linear-gradient(#ffc25a, #f29031); border-color: #fff4b2; box-shadow: 0 3px 0 #c96b3c; }
+.primary { background: linear-gradient(#b4ee56, #82cf25 55%, #60b51d); border-color: #e8ffc0; text-shadow: 0 1px 1px #386810;
+  box-shadow: inset 0 2px 2px #ffffffaa, inset 0 -3px 3px #52951877, 0 4px 0 #3c8018, 0 6px 8px #35577b35; }
+.primary:hover:not(:disabled) { background: linear-gradient(#c6f779, #91df39 55%, #6ec728); }
+.is-won #undo { color: #563677; background: #ffffffb8; border: 1px solid #fff; text-shadow: none; }
+.victory { z-index: 2; background: radial-gradient(ellipse, #e9faffde 0%, #c2f1ff77 48%, transparent 75%); }
+.victory-copy h2 { color: #7835ad; font-weight: 900; font-size: 36px; text-shadow: 0 2px 0 #f9e9ff, 0 4px 10px #8252af30; }
+.victory-copy p { color: #4e3a77; font-weight: 700; background: #ffffffb3; padding: 7px 12px; border-radius: 12px; }
+.gift-box { background: linear-gradient(135deg, #de96fa, #b967e5 55%, #9653cc); border: 2px solid #f8d4ff;
+  box-shadow: inset 0 3px 3px #ffffff99, 0 8px 0 #6b3e9b, 0 16px 26px #51469350; }
+.gift-seal { background: linear-gradient(#b8f555, #72ca1e); border-color: #edffbf; color: white; text-shadow: 0 2px #498224; }
+dialog { color: #4a3076; border: 2px solid #f3d1ff; background: linear-gradient(#fff7ff, #eee4fb);
+  box-shadow: inset 0 3px 0 #fff, 0 6px 0 #7345a5, 0 18px 60px #24386b80; }
+dialog::backdrop { background: #21204f99; }
+.dialog-heading h1, .dialog-heading h2 { color: #7140a4; font-weight: 900; }
+#levels { gap: 9px; }
+#levels button { color: #604080; background: linear-gradient(#fff, #efddfa); border-color: #d4b3eb; text-shadow: none;
+  box-shadow: inset 0 2px 0 #fff, 0 3px 0 #c29cd6; }
+#levels button:hover:not(:disabled) { background: #e9d0ff; }
+#levels button[aria-current="step"] { color: #fff; background: linear-gradient(#bc73ef, #9248d4); border-color: #dfa8ff;
+  box-shadow: inset 0 2px 1px #ffffff66, 0 3px 0 #71329f; text-shadow: 0 1px #633189; }
+.menu-subtitle { color: #704699; font-weight: 850; }
+.menu-help, .shortcuts { color: #756087; }
+.motion-setting select { border-color: #cda4e8; background: #fff9ff; color: #624080; }
+@media (max-width: 360px) {
+  .level-heading { min-width: 122px; padding: 5px 10px; }
+  .level-heading strong { font-size: 20px; }
+  .victory-copy h2 { font-size: 30px; }
+}
+@media (orientation: landscape) and (max-height: 500px) and (min-width: 600px) {
+  .game-shell { background-position: center 62%; }
+  .level-heading { flex-direction: row; gap: 8px; min-height: 40px; }
+  .victory-copy h2 { font-size: 29px; }
+}

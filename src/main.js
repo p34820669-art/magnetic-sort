@@ -1,6 +1,6 @@
-import { PuzzleSession, planMove, status } from './model.js?v=0.11.0';
-import { LEVELS, COLORS } from './levels.js?v=0.11.0';
-import { SortFeedback } from './feedback.js?v=0.11.0';
+import { PuzzleSession, planMove, status } from './model.js?v=0.12.0';
+import { LEVELS, COLORS } from './levels.js?v=0.12.0';
+import { SortFeedback } from './feedback.js?v=0.12.0';
 
 const ui = Object.fromEntries(['level-label', 'level-name', 'levels', 'tip',
   'status-panel', 'next', 'message', 'undo', 'restart', 'sound', 'menu',
@@ -38,7 +38,7 @@ function tubeLayout(count, view) {
     const row = Math.floor(index / columns);
     const inRow = Math.min(columns, count - row * columns);
     return { x: (index % columns + .5) * (view.width / inRow),
-      top: view.wide ? 76 : 90 + row * 330, scale: view.wide ? 1.16 : count <= 4 ? 1.36 : 1.3 };
+      top: view.wide ? 76 : 90 + row * 340, scale: view.wide ? 1.16 : count <= 4 ? 1.36 : 1.3 };
   });
 }
 function receivers(state) {
@@ -67,10 +67,16 @@ class SortScene extends Phaser.Scene {
     this.audioPlays = { pickup: 0, complete: 0, land: 0, win: 0 };
   }
   preload() {
-    for (const { texture } of Object.values(COLORS)) if (texture) this.load.image(texture, `./assets/${texture}.png?v=0.11.0`);
-    for (const key of ['pickup', 'complete', 'land', 'win']) this.load.audio(key, `./assets/${key}.wav?v=0.11.0`);
+    this.load.image('glass-jar', './assets/glass-jar.png?v=0.12.0');
+    for (const { texture } of Object.values(COLORS)) if (texture) this.load.image(texture, `./assets/${texture}.png?v=0.12.0`);
+    for (const key of ['pickup', 'complete', 'land', 'win']) this.load.audio(key, `./assets/${key}.wav?v=0.12.0`);
   }
   create() {
+    // Preserve the illustrated rim and foot; give the clear body room for four candies.
+    const jarTexture = this.textures.get('glass-jar');
+    jarTexture.add('rim', 0, 168, 91, 688, 176);
+    jarTexture.add('body', 0, 168, 267, 688, 1000);
+    jarTexture.add('foot', 0, 168, 1267, 688, 214);
     this.cameras.main.setOrigin(0, 0).setZoom(renderDensity);
     this.markers = this.add.graphics().setDepth(5);
     this.feedback = new SortFeedback(this);
@@ -149,7 +155,7 @@ class SortScene extends Phaser.Scene {
     // Read-only diagnostics, available only to local QA. No game-state setters.
     if (new URLSearchParams(location.search).has('qa')) {
       window.__sortQA = { snapshot: () => ({
-        version: '0.11.0', state: structuredClone(this.session.state), busy: this.busy, level: this.levelIndex,
+        version: '0.12.0', state: structuredClone(this.session.state), busy: this.busy, level: this.levelIndex,
         inputEnabled: this.input.enabled,
         status: status(this.session.state), history: this.session.history.length,
         renderer: this.game.renderer.type, receivers: receivers(this.session.state),
@@ -248,51 +254,41 @@ class SortScene extends Phaser.Scene {
     const state = this.session.state;
     const targets = receivers(state);
     const background = this.own(this.add.graphics());
-    // Quiet confectionery tray: the candies carry the strongest contrast.
-    background.fillStyle(0xfff8ef).fillRoundedRect(0, 0, this.view.width, this.view.height, 24);
-    // Fixed, low-contrast glaze grain; no animated noise behind the puzzle.
-    for (let row = 0; row < Math.ceil(this.view.height / 36); row++) {
-      for (let column = 0; column < Math.ceil(this.view.width / 36); column++) {
-        const x = 12 + column * 36 + row % 2 * 12;
-        const y = 16 + row * 36 + column % 3 * 3;
-        background.fillStyle(0xd8bfa8, .13).fillCircle(x, y, .65);
-      }
-    }
+    // One continuous illustrated world lives under the transparent canvas and HUD.
     if (status(state) === 'won') return;
-    for (const [x, y, angle] of [[20, this.view.height * .4, -.5], [this.view.width - 20, this.view.height * .65, .4]]) {
-      background.lineStyle(4, 0xe9d9db, .65).lineBetween(x, y, x + 7, y + angle * 10);
-    }
     for (const [index, tube] of state.tubes.entries()) {
       const { x, top, scale: s } = this.layout[index];
       const locked = state.locks[index];
       const receiver = tube.length && targets[tube[0]] === index;
       const tint = receiver ? COLORS[tube[0]].fill : 0x9e82b2;
       background.save().translateCanvas(x, top).scaleCanvas(s, s);
-      background.fillStyle(0x987681, .07).fillEllipse(3, 198, 98, 24);
-      background.fillStyle(0x987681, .14).fillEllipse(2, 195, 78, 13);
+      background.fillStyle(0x415cad, .10).fillEllipse(3, 204, 100, 22);
+      background.fillStyle(0x4652a8, .18).fillEllipse(1, 200, 78, 11);
       background.restore();
       // Glass pivots at its base; shadows and hit areas stay on the tray.
-      const glass = this.own(this.add.graphics({ x, y: top + 190 * s }).setDepth(1).setName(`jar-${index}`));
+      const decoration = this.add.graphics();
+      decoration.save().translateCanvas(0, -198 * s).scaleCanvas(s, s);
+      decoration.fillStyle(receiver ? tint : 0xc6f6ff, receiver ? .11 : .16).fillRoundedRect(-35, 3, 70, 174, 16);
+      const parts = [decoration,
+        this.add.image(0, -220 * s, 'glass-jar', 'rim').setOrigin(.5, 0).setDisplaySize(94 * s, 24 * s),
+        this.add.image(0, -196 * s, 'glass-jar', 'body').setOrigin(.5, 0).setDisplaySize(94 * s, 174 * s),
+        this.add.image(0, -22 * s, 'glass-jar', 'foot').setOrigin(.5, 0).setDisplaySize(94 * s, 22 * s)];
+      const glass = this.own(this.add.container(x, top + 198 * s, parts).setDepth(1).setName(`jar-${index}`));
       this.jarViews.set(index, glass);
-      glass.save().translateCanvas(0, -190 * s).scaleCanvas(s, s);
-      glass.fillStyle(0xffffff, .8).fillRoundedRect(-42, -14, 84, 204, 24);
-      glass.fillStyle(receiver ? tint : 0xe9dff3, receiver ? .09 : .28).fillRoundedRect(-38, -10, 76, 197, 21);
-      glass.lineStyle(3, 0xffffff, .95).lineBetween(-35, 11, -35, 151);
-      glass.lineStyle(1.5, 0xffffff, .9).lineBetween(34, 22, 34, 143);
-      glass.fillStyle(0xfffcff).fillEllipse(0, -14, 82, 12);
-      this.jarOutline(glass, 0, 0, 1, tint);
-      glass.lineStyle(3, 0xffffff, .8).lineBetween(-20, 183, 20, 183);
       if (receiver) {
-        // Large U-shaped magnet. The dedicated lesson explains the symbol.
-        glass.lineStyle(5, tint).beginPath().moveTo(-12, -46)
-          .lineTo(-12, -29).lineTo(12, -29).lineTo(12, -46).strokePath();
-        glass.lineStyle(5, 0x655170).lineBetween(-12, -46, -12, -41)
+        // A raised, rounded U-shaped magnet remains the receiver marker.
+        for (const [width, color, alpha, dy] of [[9, 0x584ca0, .65, 2], [7, tint, 1, 0], [2, 0xffffff, .5, -1]]) {
+          decoration.save().translateCanvas(0, dy).lineStyle(width, color, alpha).beginPath().moveTo(-12, -46)
+            .lineTo(-12, -35).arc(-6, -35, 6, Math.PI, Math.PI / 2, true).lineTo(6, -29)
+            .arc(6, -35, 6, Math.PI / 2, 0, true).lineTo(12, -46).strokePath().restore();
+        }
+        decoration.lineStyle(5, 0xfff7ff).lineBetween(-12, -46, -12, -41)
           .lineBetween(12, -46, 12, -41);
       }
       if (LEVELS[this.levelIndex].lesson === 'receiver' && state.moves === 0 && index === 1) {
-        glass.fillStyle(COLORS.B.fill).fillTriangle(-7, -37, 7, -37, 0, -27);
+        decoration.fillStyle(COLORS.B.fill).fillTriangle(-7, -37, 7, -37, 0, -27);
       }
-      glass.restore();
+      decoration.restore();
       for (const [slot, color] of tube.entries()) {
         const point = this.position(index, slot);
         this.balls.set(`${index}:${slot}`, this.own(this.makeBall(point.x, point.y, color).setAlpha(locked ? .58 : 1)));
@@ -312,15 +308,21 @@ class SortScene extends Phaser.Scene {
   makeLock(index, color) {
     const { x, top, scale } = this.layout[index], { fill, ink } = COLORS[color];
     const band = this.add.graphics();
-    band.fillStyle(fill).fillRoundedRect(-43, -22, 86, 16, 6);
-    band.lineStyle(2, 0xffffff, .8).lineBetween(-36, -19, 36, -19);
-    band.lineStyle(2, fill, .7).lineBetween(-36, -5, 36, -5);
+    const dark = parseInt(ink.slice(1), 16);
+    band.fillStyle(dark, .5).fillRoundedRect(-43, -20, 86, 18, 7);
+    band.fillStyle(fill).fillRoundedRect(-43, -23, 86, 17, 7);
+    band.fillStyle(0xffffff, .35).fillRoundedRect(-38, -22, 76, 5, 2);
     const shackle = this.add.graphics().setName('shackle');
-    shackle.lineStyle(4, parseInt(ink.slice(1), 16)).beginPath().moveTo(-9, -15).lineTo(-9, -28)
+    shackle.lineStyle(7, dark).beginPath().moveTo(-9, -15).lineTo(-9, -28)
       .arc(0, -28, 9, Math.PI, Math.PI * 2).lineTo(9, -15).strokePath();
+    shackle.lineStyle(4, fill).beginPath().moveTo(-9, -17).lineTo(-9, -28)
+      .arc(0, -28, 9, Math.PI, Math.PI * 2).lineTo(9, -17).strokePath();
+    shackle.lineStyle(1.5, 0xffffff, .65).beginPath().arc(0, -28, 8, Math.PI * 1.1, Math.PI * 1.75).strokePath();
     const badge = this.add.graphics();
-    badge.fillStyle(0xfffcf7).fillRoundedRect(-15, -26, 30, 27, 6);
-    badge.lineStyle(2.5, fill).strokeRoundedRect(-15, -26, 30, 27, 6);
+    badge.fillStyle(dark, .65).fillRoundedRect(-16, -24, 32, 29, 7);
+    badge.fillStyle(fill).fillRoundedRect(-16, -27, 32, 29, 7);
+    badge.lineStyle(1.5, 0xffffff, .8).strokeRoundedRect(-15, -27, 30, 27, 7);
+    badge.fillStyle(0xffffff, .35).fillRoundedRect(-12, -24, 24, 7, 3);
     // Same geometric code as the candy: the key is identifiable without color.
     badge.lineStyle(2.5, parseInt(ink.slice(1), 16));
     if (color === 'A') badge.strokeCircle(0, -12, 6);
@@ -514,7 +516,7 @@ class SortScene extends Phaser.Scene {
       ui['candy-box'].replaceChildren(...colors.flatMap(color => Array.from({ length: 4 }, () => {
         const cell = document.createElement('span'), candy = document.createElement('img'), symbol = document.createElement('span');
         cell.className = 'gift-candy';
-        candy.src = `./assets/${COLORS[color].texture}.png?v=0.11.0`;
+        candy.src = `./assets/${COLORS[color].texture}.png?v=0.12.0`;
         candy.alt = '';
         candy.width = candy.height = 96;
         symbol.textContent = COLORS[color].symbol;
@@ -531,8 +533,8 @@ class SortScene extends Phaser.Scene {
 }
 
 new Phaser.Game({
-  type: Phaser.AUTO, parent: 'game', width: boardView().width * renderDensity, height: boardView().height * renderDensity, backgroundColor: '#fff8ef',
+  type: Phaser.AUTO, parent: 'game', width: boardView().width * renderDensity, height: boardView().height * renderDensity, transparent: true,
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   scene: SortScene, input: { activePointers: 2 }, disableContextMenu: true,
-  title: 'Magnetic Sort', version: '0.11.0'
+  title: 'Magnetic Sort', version: '0.12.0'
 });
