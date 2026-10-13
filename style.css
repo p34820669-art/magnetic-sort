@@ -23,8 +23,9 @@ h2 { font-size: 19px; margin: 0; font-weight: 650; }
 #color-progress { display: flex; gap: 6px; }
 .color-chip { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 50%; font-size: 18px; border: 1px solid var(--color); color: var(--color); opacity: .65; }
 .color-chip.done { opacity: 1; background: var(--color); color: #122031; }
-.color-chip.collect { animation: collected .32s ease-out; }
-@keyframes collected { 40% { transform: scale(1.3); box-shadow: 0 0 0 6px #ffffff22; } }
+.color-chip.collect { animation: collected .46s ease-out; }
+@keyframes collected { 35% { transform: scale(1.5); box-shadow: 0 0 0 8px #ffffff22; } 65% { transform: scale(.92); } }
+.collection-token { position: fixed; top: 0; left: 0; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: var(--color); color: #122031; border: 2px solid #ffffff88; box-shadow: 0 0 16px var(--color); font-size: 21px; z-index: 30; pointer-events: none; }
 .board-wrap { flex: 1; min-height: 0; position: relative; }
 #game { position: absolute; inset: 0; overflow: hidden; border-radius: 14px; touch-action: none; }
 #game canvas { display: block; touch-action: none; }
@@ -48,6 +49,9 @@ dialog::backdrop { background: #050d18bb; }
 #levels button[aria-current="step"] { color: #102c2d; background: #7ce1c9; border-color: #7ce1c9; }
 .menu-help, .shortcuts { font-size: 13px; line-height: 1.4; color: #bccadd; margin: 12px 0 0; }
 .shortcuts { font-size: 11px; }
+.motion-setting { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; }
+.motion-setting select { font: inherit; color: #eaf1fb; background: #24354b; border: 1px solid #40536c; border-radius: 10px; min-height: 44px; padding: 0 8px; max-width: 70%; }
+.motion-setting select:focus-visible { outline: 3px solid #bdeff0; }
 @media (max-width: 360px) {
   .game-shell { padding-left: 6px; padding-right: 6px; gap: 6px; }
   .game-card { padding: 9px; gap: 4px; }
@@ -67,4 +71,6 @@ dialog::backdrop { background: #050d18bb; }
   .board-wrap { grid-column: 2; grid-row: 1 / 3; height: 100%; }
   .bottom-panel { grid-column: 1; grid-row: 2; }
 }
-@media (prefers-reduced-motion: reduce) { button { transition: none; } .color-chip.collect { animation: none; } }
+body[data-motion="gentle"] button { transition: none; }
+body[data-motion="gentle"] .color-chip.collect { animation: gentle-collected .4s ease-out; }
+@keyframes gentle-collected { 50% { box-shadow: 0 0 0 4px #ffffff33; } }

@@ -6,9 +6,9 @@
     <meta name="theme-color" content="#111a29">
     <title>Магнитная сортировка</title>
     <link rel="icon" href="./favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="./style.css">
+    <link rel="stylesheet" href="./style.css?v=0.3.0">
     <script defer src="./vendor/phaser.min.js"></script>
-    <script type="module" src="./src/main.js"></script>
+    <script type="module" src="./src/main.js?v=0.3.0"></script>
   </head>
   <body>
     <main class="game-shell">
@@ -44,8 +44,12 @@
         <div class="dialog-heading"><h2 id="menu-title">Выбери уровень</h2><button id="close-menu" aria-label="Закрыть меню">✕</button></div>
         <p class="menu-help">Собери по четыре одинаковых и очисти поле.</p>
         <nav id="levels" aria-label="Выбор уровня"></nav>
+        <label class="motion-setting" for="motion">Анимация
+          <select id="motion"><option value="auto">Как на устройстве</option><option value="full">Полная</option><option value="gentle">Мягкая</option></select>
+        </label>
+        <p id="motion-note" class="menu-help"></p>
         <p class="menu-help">Удерживай стопку, чтобы увидеть маршрут. Уведи палец за её край, чтобы отменить касание.</p>
-        <p class="shortcuts">Клавиши: 1–6 — стопка · Z — отменить · R — заново</p>
+        <p class="shortcuts">Клавиши: 1–6 — стопка · Z — отменить · R — заново · v0.3.0</p>
       </dialog>
       <noscript>Для запуска игры включите JavaScript в браузере.</noscript>
     </main>
