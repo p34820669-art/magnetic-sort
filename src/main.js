@@ -1,6 +1,6 @@
-import { PuzzleSession, planMove, status } from './model.js?v=0.12.0';
-import { LEVELS, COLORS } from './levels.js?v=0.12.0';
-import { SortFeedback } from './feedback.js?v=0.12.0';
+import { PuzzleSession, planMove, status } from './model.js?v=0.13.0';
+import { LEVELS, COLORS } from './levels.js?v=0.13.0';
+import { SortFeedback } from './feedback.js?v=0.13.0';
 
 const ui = Object.fromEntries(['level-label', 'level-name', 'levels', 'tip',
   'status-panel', 'next', 'message', 'undo', 'restart', 'sound', 'menu',
@@ -64,12 +64,12 @@ class SortScene extends Phaser.Scene {
     this.lockViews = new Map();
     this.pressed = null;
     this.previewMove = null;
-    this.audioPlays = { pickup: 0, complete: 0, land: 0, win: 0 };
+    this.audioPlays = { pickup: 0, complete: 0, land: 0, win: 0, seal: 0 };
   }
   preload() {
-    this.load.image('glass-jar', './assets/glass-jar.png?v=0.12.0');
-    for (const { texture } of Object.values(COLORS)) if (texture) this.load.image(texture, `./assets/${texture}.png?v=0.12.0`);
-    for (const key of ['pickup', 'complete', 'land', 'win']) this.load.audio(key, `./assets/${key}.wav?v=0.12.0`);
+    this.load.image('glass-jar', './assets/glass-jar.png?v=0.13.0');
+    for (const { texture } of Object.values(COLORS)) if (texture) this.load.image(texture, `./assets/${texture}.png?v=0.13.0`);
+    for (const key of ['pickup', 'complete', 'land', 'win', 'seal']) this.load.audio(key, `./assets/${key}.wav?v=0.13.0`);
   }
   create() {
     // Preserve the illustrated rim and foot; give the clear body room for four candies.
@@ -85,7 +85,7 @@ class SortScene extends Phaser.Scene {
     this.setMotion(motion);
     ui.motion.addEventListener('change', () => this.setMotion(ui.motion.value));
     motionQuery.addEventListener('change', () => this.setMotion(this.motionPreference));
-    this.sfx = Object.fromEntries(['pickup', 'complete', 'land', 'win'].map(key => {
+    this.sfx = Object.fromEntries(['pickup', 'complete', 'land', 'win', 'seal'].map(key => {
       const sound = this.sound.add(key);
       sound.on('play', () => { this.audioPlays[key]++; });
       return [key, sound];
@@ -155,7 +155,7 @@ class SortScene extends Phaser.Scene {
     // Read-only diagnostics, available only to local QA. No game-state setters.
     if (new URLSearchParams(location.search).has('qa')) {
       window.__sortQA = { snapshot: () => ({
-        version: '0.12.0', state: structuredClone(this.session.state), busy: this.busy, level: this.levelIndex,
+        version: '0.13.0', state: structuredClone(this.session.state), busy: this.busy, level: this.levelIndex,
         inputEnabled: this.input.enabled,
         status: status(this.session.state), history: this.session.history.length,
         renderer: this.game.renderer.type, receivers: receivers(this.session.state),
@@ -163,13 +163,13 @@ class SortScene extends Phaser.Scene {
         motion: { preference: this.motionPreference, effective: this.gentleMotion ? 'gentle' : 'full', systemReduced: motionQuery.matches },
         feedback: { phase: this.feedback.phase, effects: this.feedback.effects.size, reactions: this.feedback.reactions.size, lastDuration: this.feedback.lastDuration },
         camera: { x: this.cameras.main.scrollX, y: this.cameras.main.scrollY },
-        effects: [...this.feedback.effects].map(effect => ({ name: effect.name, x: effect.x, y: effect.y, alpha: effect.alpha, scaleX: effect.scaleX })),
+        effects: [...this.feedback.effects].map(effect => ({ name: effect.name, x: effect.x, y: effect.y, alpha: effect.alpha, scaleX: effect.scaleX, scaleY: effect.scaleY, angle: effect.angle })),
         balls: [...this.balls].map(([id, ball]) => ({ id, x: ball.x, y: ball.y, scaleX: ball.scaleX, scaleY: ball.scaleY, alpha: ball.alpha,
           contact: { y: ball.getAt(0).y, scaleX: ball.getAt(0).scaleX, scaleY: ball.getAt(0).scaleY } })),
         jars: [...this.jarViews].map(([index, jar]) => ({ index, rotation: jar.rotation })),
         locks: [...this.lockViews].map(([index, lock]) => ({ index, x: lock.x, y: lock.y, alpha: lock.alpha, shackleY: lock.getByName('shackle').y })),
         audio: { muted: this.muted, engineMuted: this.sound.mute, plays: { ...this.audioPlays },
-          decoded: ['pickup', 'complete', 'land', 'win'].every(key => this.cache.audio.exists(key)),
+          decoded: ['pickup', 'complete', 'land', 'win', 'seal'].every(key => this.cache.audio.exists(key)),
           context: this.sound.context?.state ?? 'html5' },
         centers: this.layout.map(({ x, top, scale }) => ({ x, y: top + 88 * scale })),
         view: { ...this.view },
@@ -266,7 +266,7 @@ class SortScene extends Phaser.Scene {
       background.fillStyle(0x4652a8, .18).fillEllipse(1, 200, 78, 11);
       background.restore();
       // Glass pivots at its base; shadows and hit areas stay on the tray.
-      const decoration = this.add.graphics();
+      const decoration = this.add.graphics().setName('jar-decoration');
       decoration.save().translateCanvas(0, -198 * s).scaleCanvas(s, s);
       decoration.fillStyle(receiver ? tint : 0xc6f6ff, receiver ? .11 : .16).fillRoundedRect(-35, 3, 70, 174, 16);
       const parts = [decoration,
@@ -297,9 +297,9 @@ class SortScene extends Phaser.Scene {
       if (tube.length && !locked) {
         const point = this.position(index, tube.length - 1);
         if (planMove(state, index).valid) {
-          this.own(this.add.graphics().setDepth(1.5)).lineStyle(2, COLORS[tube.at(-1)].fill, .8).strokeCircle(point.x, point.y, 26 * s);
+          this.own(this.add.graphics().setDepth(1.5).setName('move-affordance')).lineStyle(2, COLORS[tube.at(-1)].fill, .8).strokeCircle(point.x, point.y, 26 * s);
         } else {
-          this.text(x + 31 * s, point.y - 10 * s, '×', 18 * s, '#79638a').setDepth(3);
+          this.text(x + 31 * s, point.y - 10 * s, '×', 18 * s, '#79638a').setDepth(3).setName('move-affordance');
         }
       }
 
@@ -453,6 +453,8 @@ class SortScene extends Phaser.Scene {
     this.feedback.gentle = this.gentleMotion;
     this.preview(index);
     this.busy = true;
+    // Hints describe the resting board. They must not float in vacated slots while sealing.
+    this.boardObjects.filter(object => object.name === 'move-affordance').forEach(object => object.setVisible(false));
     this.refresh();
     const move = this.session.move(index);
     const moving = await this.feedback.gather(move);
@@ -516,7 +518,7 @@ class SortScene extends Phaser.Scene {
       ui['candy-box'].replaceChildren(...colors.flatMap(color => Array.from({ length: 4 }, () => {
         const cell = document.createElement('span'), candy = document.createElement('img'), symbol = document.createElement('span');
         cell.className = 'gift-candy';
-        candy.src = `./assets/${COLORS[color].texture}.png?v=0.12.0`;
+        candy.src = `./assets/${COLORS[color].texture}.png?v=0.13.0`;
         candy.alt = '';
         candy.width = candy.height = 96;
         symbol.textContent = COLORS[color].symbol;
@@ -536,5 +538,5 @@ new Phaser.Game({
   type: Phaser.AUTO, parent: 'game', width: boardView().width * renderDensity, height: boardView().height * renderDensity, transparent: true,
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   scene: SortScene, input: { activePointers: 2 }, disableContextMenu: true,
-  title: 'Magnetic Sort', version: '0.12.0'
+  title: 'Magnetic Sort', version: '0.13.0'
 });

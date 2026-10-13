@@ -90,7 +90,7 @@ body[data-motion="gentle"] button:active { transform: none; }
 /* Candy world: one illustrated scene, tactile controls and compact gameplay HUD. */
 :root { color: #493377; background: #559de8; }
 body { background: radial-gradient(ellipse at 50% 30%, #90e5f5, #6084d4 80%); }
-.game-shell { background: #64c7f3 url('./assets/candy-world.png?v=0.12.0') center / cover no-repeat; box-shadow: 0 0 70px #30357f45; }
+.game-shell { background: #64c7f3 url('./assets/candy-world.png?v=0.13.0') center / cover no-repeat; box-shadow: 0 0 70px #30357f45; }
 .game-card { background: transparent; border-color: transparent; border-radius: 0; box-shadow: none; }
 .hud { padding: 0 2px; gap: 10px; }
 .level-heading { justify-self: center; min-width: 138px; padding: 5px 16px; border: 1px solid #dfb0ff; border-radius: 19px;

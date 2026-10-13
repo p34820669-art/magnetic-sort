@@ -1,5 +1,5 @@
 {
-    "version":  "0.12.0",
+    "version":  "0.13.0",
     "provenance":  "Original procedural audio and code-native UI; candy sprites generated with built-in image_gen, no external image references",
     "generator":  "scripts/generate-audio.mjs",
     "regenerate":  "node scripts/generate-audio.mjs",
@@ -28,6 +28,14 @@
                        "durationMs":  660,
                        "purpose":  "Level cleared",
                        "recipe":  "C5/E5/G5/C6 staggered 0/90/180/290 ms with soft attack and quadratic decay"
+                   },
+                   {
+                       "file":  "seal.wav",
+                       "durationMs":  240,
+                       "purpose":  "Rubber lid contact on completed group of four",
+                       "recipe":  "Integrated exponential 310 to 105 Hz body sweep, damped 2.35x shell harmonic, deterministic low-pass air puff, 1.8 ms attack, soft tail; plays at contact, rate 0.98/1/1.02, volume 0.88",
+                       "bytes":  10628,
+                       "sha256":  "02F009A16792A5202F114F1163E78835199B15884ED5C95F556D82B61E34896B"
                    }
                ],
     "visuals":  {
@@ -38,7 +46,7 @@
                                     "style.css",
                                     "favicon.svg"
                                 ],
-                    "direction":  "Candy world 0.12.0: original illustrated confectionery sky garden, quiet cyan center and pastel clouds/islands at the edges. Pink glossy navigation, purple level and undo, green next button, unified menu/help/victory. Transparent illustrated jar with three Phaser frames: rim (168,91,688,176), body (168,267,688,1000), foot (168,1267,688,214); render heights 24/174/22, width 94 before jar scale, top -22 and bottom 198. Body width about 83; four original glossy candy textures and geometric symbols preserved. Portrait row tops 90/430, existing scale and hit areas retained. Raised color locks and rounded receiver magnets. CSS world under transparent canvas, DPR capped at 2. Prior contact/key-flight effects retained; gentle mode unchanged.",
+                    "direction":  "Candy world 0.12.0: original illustrated confectionery sky garden, quiet cyan center and pastel clouds/islands at the edges. Pink glossy navigation, purple level and undo, green next button, unified menu/help/victory. Transparent illustrated jar with three Phaser frames: rim (168,91,688,176), body (168,267,688,1000), foot (168,1267,688,214); render heights 24/174/22, width 94 before jar scale, top -22 and bottom 198. Body width about 83; four original glossy candy textures and geometric symbols preserved. Portrait row tops 90/430, existing scale and hit areas retained. Raised color locks and rounded receiver magnets. CSS world under transparent canvas, DPR capped at 2. Prior contact/key-flight effects retained; gentle mode unchanged. 0.13.0: color-matched procedural silicone lid seals each completed group before dispatch; 200 ms fall, 60 ms squash to 1.10x0.70, 160 ms spring return, 100 ms seated hold; 140 ms fade and 160 ms hold in gentle mode. Rounded skirt, sealing lip and soft top-left gradients baked once per color into a 448x160 CanvasTexture; no extra downloaded images. Upper-row fall height constrained to available space.",
                     "generation":  "Built-in image_gen, 2026-10-13",
                     "imageGenerationPrompts":  [
                                                    "Create one production sprite sheet asset for a mobile candy sorting puzzle, exactly FOUR separate glossy hard candy discs in a precise 2 by 2 grid on a genuinely TRANSPARENT background. Square canvas. Each quadrant has one identical-size candy centered at (25%,25%), (75%,25%), (25%,75%), (75%,75%). Each disc occupies 31 percent of total canvas width and height, leaving generous completely transparent space between them.\nTop left: saturated mint turquoise candy. Top right: saturated watermelon coral candy. Bottom left: rich lavender purple candy. Bottom right: warm golden yellow candy. All four have the SAME perfectly round silhouette and front-facing orthographic camera, inflated lentil shape, smooth edible sugar glaze with luxurious broad soft specular reflection at upper left, subtle darker lower rim, clean softly lit center. Cute polished 3D casual game art, highly legible at 36 pixels diameter. Strong saturated midtones, restrained white highlight occupying under 15% of surface. Absolutely no faces, no symbols, no letters, no text, no wrappers, no sticks, no fruit, no sprinkles, no borders, no labels, no checkered backdrop, no ground plane. No cast shadows outside the discs. Only four isolated matching round candy objects. Preserve genuine alpha transparency.\n"

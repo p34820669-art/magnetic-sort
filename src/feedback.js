@@ -1,4 +1,4 @@
-import { COLORS } from './levels.js?v=0.12.0';
+import { COLORS } from './levels.js?v=0.13.0';
 
 // Presentation only. The resolver owns all moves; feedback never changes puzzle state.
 export class SortFeedback {
@@ -22,6 +22,7 @@ export class SortFeedback {
   reset() {
     this.beginMove();
     this.scene.sfx?.win?.stop();
+    this.scene.sfx?.seal?.stop();
     for (const object of [...this.effects]) this.remove(object);
   }
   beginMove() {
@@ -237,23 +238,103 @@ export class SortFeedback {
     this.phase = 'settle';
     return moving;
   }
+  makeLid(x, y, s, color) {
+    // Bake soft silicone shading once per color. CanvasTexture renders identically
+    // in WebGL and Canvas, unlike Graphics gradients. The root pivots at the seal.
+    const scene = this.scene, key = `rubber-lid-${color.fill}`;
+    if (!scene.textures.exists(key)) {
+      const texture = scene.textures.createCanvas(key, 448, 160), ctx = texture.getContext();
+      ctx.scale(4, 4); ctx.translate(56, 34);
+      const lighter = amount => {
+        const channels = [16, 8, 0].map(shift => Math.round(((color.fill >> shift) & 255) * (1 - amount) + 255 * amount));
+        return `rgb(${channels.join(',')})`;
+      };
+      const body = ctx.createLinearGradient(-49, 0, 49, 0);
+      body.addColorStop(0, color.ink); body.addColorStop(.12, color.css);
+      body.addColorStop(.34, lighter(.18)); body.addColorStop(.72, color.css); body.addColorStop(1, color.ink);
+      ctx.fillStyle = body;
+      ctx.beginPath(); ctx.moveTo(-49, -22);
+      ctx.bezierCurveTo(-49, -10, -50, -3, -43, -1);
+      ctx.bezierCurveTo(-22, 4, 22, 4, 43, -1);
+      ctx.bezierCurveTo(50, -3, 49, -10, 49, -22); ctx.closePath(); ctx.fill();
+      ctx.save();
+      ctx.clip();
+      const lip = ctx.createLinearGradient(0, -12, 0, 3);
+      lip.addColorStop(0, 'rgba(35,20,60,0)'); lip.addColorStop(1, 'rgba(35,20,60,.34)');
+      ctx.fillStyle = lip; ctx.fillRect(-50, -12, 100, 16);
+      ctx.restore();
+      const top = ctx.createLinearGradient(-12, -30, 14, -12);
+      top.addColorStop(0, lighter(.61)); top.addColorStop(.45, lighter(.32)); top.addColorStop(1, color.css);
+      ctx.fillStyle = top; ctx.beginPath(); ctx.ellipse(0, -22, 49, 8.5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,.38)'; ctx.lineWidth = .8; ctx.stroke();
+      ctx.save(); ctx.translate(-15, -25); ctx.scale(1, .17);
+      const sheen = ctx.createRadialGradient(0, 0, 0, 0, 0, 31);
+      sheen.addColorStop(0, 'rgba(255,255,255,.6)'); sheen.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = sheen; ctx.beginPath(); ctx.arc(0, 0, 31, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.lineWidth = 1.3; ctx.lineCap = 'round';
+      for (const rib of [-42, -36, 36, 42]) {
+        ctx.beginPath(); ctx.moveTo(rib, -14); ctx.lineTo(rib, -8); ctx.stroke();
+      }
+      texture.refresh();
+    }
+    const image = scene.add.image(0, 0, key).setOrigin(.5, .85).setDisplaySize(112 * s, 40 * s);
+    return this.own(scene.add.container(x, y, [image]).setDepth(32).setName('rubber-lid'));
+  }
+  async seal(move, batch) {
+    const scene = this.scene, { x, top, scale: s } = scene.layout[move.destination];
+    const color = COLORS[move.color], seatY = top - 9 * s;
+    this.phase = 'capping';
+    this.clearReactions();
+    const decoration = scene.jarViews.get(move.destination)?.getByName('jar-decoration');
+    if (decoration) this.animate(decoration, { alpha: 0, duration: 100, ease: 'Sine.easeOut' });
+    const lid = this.makeLid(x, seatY, s, color);
+    const shadow = this.own(scene.add.graphics({ x, y: seatY + s }).setDepth(30).setName('lid-shadow'));
+    shadow.fillStyle(0x34316e, .2).fillEllipse(0, 0, 86 * s, 9 * s).setAlpha(0);
+    if (this.gentle) {
+      lid.setAlpha(0);
+      await Promise.all([this.animate(lid, { alpha: 1, duration: 140, ease: 'Sine.easeOut' }),
+        this.animate(shadow, { alpha: 1, duration: 140, ease: 'Sine.easeOut' })]);
+    } else {
+      const startY = Math.max(seatY - 26 * s, 42 * s + 4);
+      lid.setPosition(x - 5 * s, startY).setAngle(-7).setScale(.94, 1.08).setAlpha(0);
+      this.animate(shadow, { alpha: 1, duration: 200, ease: 'Cubic.easeIn' });
+      await this.animate(lid, { x, y: seatY, angle: 0, scaleX: 1, scaleY: 1,
+        alpha: { value: 1, duration: 70 }, duration: 200, ease: 'Cubic.easeIn' });
+    }
+    this.phase = 'cap-contact';
+    scene.playSound('seal', { volume: .88, rate: .98 + ((scene.session.state.cleared.length - 1) % 3) * .02 });
+    if (!this.gentle) {
+      const ring = this.own(scene.add.graphics({ x, y: seatY }).setDepth(31).setName('seal-ring'));
+      ring.lineStyle(2, 0xffffff, .65).strokeEllipse(0, 0, 95 * s, 14 * s);
+      this.animate(ring, { scaleX: 1.22, scaleY: 1.5, alpha: 0, duration: 220, ease: 'Cubic.easeOut' }).then(() => this.remove(ring));
+      this.animate(batch, { scaleX: 1.055, scaleY: .95, duration: 55, yoyo: true, ease: 'Sine.easeInOut' });
+      // Bottom pivot stays seated while the rubber spreads and springs back.
+      await this.animate(lid, { scaleX: 1.1, scaleY: .7, duration: 60, ease: 'Quad.easeOut' });
+      await this.animate(lid, { scaleX: 1, scaleY: 1, duration: 160, ease: 'Back.easeOut' });
+    }
+    this.phase = 'sealed';
+    await scene.delay(this.gentle ? 160 : 100);
+    return { lid, shadow };
+  }
   async collect(move, moving) {
     const scene = this.scene, { x, top, scale: s } = scene.layout[move.destination], color = COLORS[move.color];
     const centerY = top + 88 * s;
     const existing = [...scene.balls.entries()].filter(([key]) => key.startsWith(`${move.destination}:`)).map(([, ball]) => ball);
     const batch = [...existing, ...moving];
+    const { lid, shadow } = await this.seal(move, batch);
     this.phase = 'complete';
     this.rim(move.destination, color.fill, true);
     this.charge(x, centerY, color.fill);
     if (this.gentle) {
       scene.playSound('complete', { rate: 1 + (scene.session.state.cleared.length - 1) * .04 });
-      await this.animate(batch, { alpha: 0, duration: 250, ease: 'Sine.easeInOut' });
+      await Promise.all([this.animate(batch, { alpha: 0, duration: 250, ease: 'Sine.easeInOut' }),
+        this.fade(lid, 250), this.fade(shadow, 250)]);
     } else {
-      await this.animate(batch, { scaleX: 1.15, scaleY: .86, duration: 75, yoyo: true, ease: 'Sine.easeInOut' });
       scene.playSound('complete', { rate: 1 + (scene.session.state.cleared.length - 1) * .04 });
       this.burst(x, centerY, color.fill, 12);
       this.impact(x, centerY, color.fill);
-      await this.animate(batch, { x, y: centerY, scale: .4, alpha: 0, duration: 100, ease: 'Cubic.easeIn' });
+      await Promise.all([this.animate(batch, { x, y: centerY, scale: .4, alpha: 0, duration: 100, ease: 'Cubic.easeIn' }),
+        this.fade(lid, 100), this.fade(shadow, 100)]);
       this.phase = 'collect';
       // Completion stays at the receiving jar; there is no separate HUD destination.
       const glint = this.own(scene.add.graphics({ x, y: centerY }).setDepth(35).setName('collection-glint'));
