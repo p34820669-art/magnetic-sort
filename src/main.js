@@ -1,6 +1,6 @@
-import { PuzzleSession, planMove, status } from './model.js?v=0.8.0';
-import { LEVELS, COLORS } from './levels.js?v=0.8.0';
-import { SortFeedback } from './feedback.js?v=0.8.0';
+import { PuzzleSession, planMove, status } from './model.js?v=0.9.0';
+import { LEVELS, COLORS } from './levels.js?v=0.9.0';
+import { SortFeedback } from './feedback.js?v=0.9.0';
 
 const ui = Object.fromEntries(['level-label', 'level-name', 'levels', 'tip',
   'status-panel', 'next', 'message', 'undo', 'restart', 'sound', 'menu',
@@ -32,7 +32,7 @@ function tubeLayout(count, view) {
     const row = Math.floor(index / columns);
     const inRow = Math.min(columns, count - row * columns);
     return { x: (index % columns + .5) * (view.width / inRow),
-      top: view.wide ? 62 : 72 + row * 340, scale: view.wide ? 1.25 : count <= 4 ? 1.36 : 1.3 };
+      top: view.wide ? 76 : 90 + row * 330, scale: view.wide ? 1.16 : count <= 4 ? 1.36 : 1.3 };
   });
 }
 function receivers(state) {
@@ -59,8 +59,8 @@ class SortScene extends Phaser.Scene {
     this.audioPlays = { pickup: 0, complete: 0, land: 0, win: 0 };
   }
   preload() {
-    for (const { texture } of Object.values(COLORS)) if (texture) this.load.image(texture, `./assets/${texture}.png?v=0.8.0`);
-    for (const key of ['pickup', 'complete', 'land', 'win']) this.load.audio(key, `./assets/${key}.wav?v=0.8.0`);
+    for (const { texture } of Object.values(COLORS)) if (texture) this.load.image(texture, `./assets/${texture}.png?v=0.9.0`);
+    for (const key of ['pickup', 'complete', 'land', 'win']) this.load.audio(key, `./assets/${key}.wav?v=0.9.0`);
   }
   create() {
     this.cameras.main.setOrigin(0, 0).setZoom(renderDensity);
@@ -141,7 +141,7 @@ class SortScene extends Phaser.Scene {
     // Read-only diagnostics, available only to local QA. No game-state setters.
     if (new URLSearchParams(location.search).has('qa')) {
       window.__sortQA = { snapshot: () => ({
-        version: '0.8.0', state: structuredClone(this.session.state), busy: this.busy, level: this.levelIndex,
+        version: '0.9.0', state: structuredClone(this.session.state), busy: this.busy, level: this.levelIndex,
         inputEnabled: this.input.enabled,
         status: status(this.session.state), history: this.session.history.length,
         renderer: this.game.renderer.type, receivers: receivers(this.session.state),
@@ -154,7 +154,7 @@ class SortScene extends Phaser.Scene {
         audio: { muted: this.muted, engineMuted: this.sound.mute, plays: { ...this.audioPlays },
           decoded: ['pickup', 'complete', 'land', 'win'].every(key => this.cache.audio.exists(key)),
           context: this.sound.context?.state ?? 'html5' },
-        centers: this.layout.map(({ x, top, scale }) => ({ x, y: top + 80 * scale })),
+        centers: this.layout.map(({ x, top, scale }) => ({ x, y: top + 88 * scale })),
         view: { ...this.view },
         presentation: { density: renderDensity, canvas: [this.game.canvas.width, this.game.canvas.height],
           tubeScale: this.layout[0].scale, victoryVisible: !ui.victory.hidden }
@@ -200,16 +200,16 @@ class SortScene extends Phaser.Scene {
     return this.own(this.add.text(x, y, value, { fontFamily: 'Segoe UI, Arial, sans-serif',
       fontSize: `${readableSize}px`, color }).setResolution(renderDensity).setOrigin(.5));
   }
-  position(index, slot) { const { x, top, scale } = this.layout[index]; return { x, y: top + (136 - slot * 37) * scale }; }
+  position(index, slot) { const { x, top, scale } = this.layout[index]; return { x, y: top + (154 - slot * 42) * scale }; }
   jarOutline(graphics, x, top, scale, color, width = 2.5, alpha = .95) {
     // Shared by the glass, route preview and landing/rejection highlights.
     graphics.save().translateCanvas(x, top).scaleCanvas(scale, scale);
     graphics.lineStyle(width, color, alpha).beginPath()
-      .arc(-16, 8, 22, -Math.PI + .94, -Math.PI, true).lineTo(-38, 148)
-      .arc(-16, 148, 22, Math.PI, Math.PI / 2, true).lineTo(16, 170)
-      .arc(16, 148, 22, Math.PI / 2, 0, true).lineTo(38, 8)
-      .arc(16, 8, 22, 0, -.94, true).strokePath();
-    graphics.strokeEllipse(0, -14, 74, 12);
+      .arc(-18, 10, 24, -Math.PI + .94, -Math.PI, true).lineTo(-42, 166)
+      .arc(-18, 166, 24, Math.PI, Math.PI / 2, true).lineTo(18, 190)
+      .arc(18, 166, 24, Math.PI / 2, 0, true).lineTo(42, 10)
+      .arc(18, 10, 24, 0, -.94, true).strokePath();
+    graphics.strokeEllipse(0, -14, 82, 12);
     graphics.restore();
   }
   drawBoard() {
@@ -223,7 +223,7 @@ class SortScene extends Phaser.Scene {
       const layout = this.layout[index];
       zone.setVisible(Boolean(layout));
       if (layout && status(this.session.state) !== 'won') {
-        zone.setPosition(layout.x, layout.top + 81 * layout.scale).setScale(layout.scale);
+        zone.setPosition(layout.x, layout.top + 88 * layout.scale).setScale(layout.scale);
         zone.setInteractive();
       }
       else zone.disableInteractive();
@@ -233,6 +233,14 @@ class SortScene extends Phaser.Scene {
     const background = this.own(this.add.graphics());
     // Quiet confectionery tray: the candies carry the strongest contrast.
     background.fillStyle(0xfff8ef).fillRoundedRect(0, 0, this.view.width, this.view.height, 24);
+    // Fixed, low-contrast glaze grain; no animated noise behind the puzzle.
+    for (let row = 0; row < Math.ceil(this.view.height / 36); row++) {
+      for (let column = 0; column < Math.ceil(this.view.width / 36); column++) {
+        const x = 12 + column * 36 + row % 2 * 12;
+        const y = 16 + row * 36 + column % 3 * 3;
+        background.fillStyle(0xd8bfa8, .13).fillCircle(x, y, .65);
+      }
+    }
     if (status(state) === 'won') return;
     for (const [x, y, angle] of [[20, this.view.height * .4, -.5], [this.view.width - 20, this.view.height * .65, .4]]) {
       background.lineStyle(4, 0xe9d9db, .65).lineBetween(x, y, x + 7, y + angle * 10);
@@ -242,14 +250,15 @@ class SortScene extends Phaser.Scene {
       const receiver = tube.length && targets[tube[0]] === index;
       const tint = receiver ? COLORS[tube[0]].fill : 0x9e82b2;
       background.save().translateCanvas(x, top).scaleCanvas(s, s);
-      background.fillStyle(0x8e6b96, .16).fillEllipse(2, 175, 80, 16);
-      background.fillStyle(0xffffff, .8).fillRoundedRect(-38, -14, 76, 184, 22);
-      background.fillStyle(receiver ? tint : 0xe9dff3, receiver ? .09 : .28).fillRoundedRect(-34, -10, 68, 177, 19);
-      background.lineStyle(3, 0xffffff, .95).lineBetween(-31, 9, -31, 134);
-      background.lineStyle(1.5, 0xffffff, .9).lineBetween(30, 20, 30, 123);
-      background.fillStyle(0xfffcff).fillEllipse(0, -14, 74, 12);
+      background.fillStyle(0x987681, .07).fillEllipse(3, 198, 98, 24);
+      background.fillStyle(0x987681, .14).fillEllipse(2, 195, 78, 13);
+      background.fillStyle(0xffffff, .8).fillRoundedRect(-42, -14, 84, 204, 24);
+      background.fillStyle(receiver ? tint : 0xe9dff3, receiver ? .09 : .28).fillRoundedRect(-38, -10, 76, 197, 21);
+      background.lineStyle(3, 0xffffff, .95).lineBetween(-35, 11, -35, 151);
+      background.lineStyle(1.5, 0xffffff, .9).lineBetween(34, 22, 34, 143);
+      background.fillStyle(0xfffcff).fillEllipse(0, -14, 82, 12);
       this.jarOutline(background, 0, 0, 1, tint);
-      background.lineStyle(3, 0xffffff, .8).lineBetween(-18, 163, 18, 163);
+      background.lineStyle(3, 0xffffff, .8).lineBetween(-20, 183, 20, 183);
       if (receiver) {
         // Large U-shaped magnet. The dedicated lesson explains the symbol.
         background.lineStyle(5, tint).beginPath().moveTo(-12, -46)
@@ -268,9 +277,9 @@ class SortScene extends Phaser.Scene {
       if (tube.length) {
         const point = this.position(index, tube.length - 1);
         if (planMove(state, index).valid) {
-          background.lineStyle(2, COLORS[tube.at(-1)].fill, .8).strokeCircle(point.x, point.y, 23 * s);
+          background.lineStyle(2, COLORS[tube.at(-1)].fill, .8).strokeCircle(point.x, point.y, 26 * s);
         } else {
-          this.text(x + 28 * s, point.y - 9 * s, '×', 18 * s, '#79638a').setDepth(3);
+          this.text(x + 31 * s, point.y - 10 * s, '×', 18 * s, '#79638a').setDepth(3);
         }
       }
 
@@ -279,7 +288,7 @@ class SortScene extends Phaser.Scene {
   createInputZones() {
     this.zones = [];
     for (let index = 0; index < 6; index++) {
-      const zone = this.add.zone(0, 0, 90, 198).setDepth(10).setInteractive({ useHandCursor: true });
+      const zone = this.add.zone(0, 0, 94, 218).setDepth(10).setInteractive({ useHandCursor: true });
       this.zones.push(zone);
       zone.on('pointerover', pointer => { if (!pointer.wasTouch) this.preview(index); });
       zone.on('pointerout', pointer => {
@@ -316,7 +325,7 @@ class SortScene extends Phaser.Scene {
     if (color === 'E') ball.lineBetween(-7, 0, 7, 0).lineBetween(0, -7, 0, 7);
     if (color === 'F') ball.lineBetween(-7, -3, 7, -3).lineBetween(-7, 3, 7, 3);
     // Unit root scale keeps the existing press, flight and landing tweens intact.
-    const visual = this.add.container(0, 0, [shadow, candy, ball]).setScale(this.layout[0].scale);
+    const visual = this.add.container(0, 0, [shadow, candy, ball]).setScale(this.layout[0].scale * 1.125);
     return this.add.container(x, y, [visual]).setDepth(2);
   }
   fitBoard() {
@@ -380,7 +389,7 @@ class SortScene extends Phaser.Scene {
     this.markers.lineStyle(3, COLORS[move.color].fill);
     for (const transfer of move.transfers) {
       const point = this.position(transfer.from, transfer.fromSlot);
-      this.markers.strokeCircle(point.x, point.y, 21 * s);
+      this.markers.strokeCircle(point.x, point.y, 24 * s);
     }
     this.jarOutline(this.markers, destination.x, destination.top, s, COLORS[move.color].fill, 3, 1);
   }
@@ -460,7 +469,7 @@ class SortScene extends Phaser.Scene {
       ui['candy-box'].replaceChildren(...colors.flatMap(color => Array.from({ length: 4 }, () => {
         const cell = document.createElement('span'), candy = document.createElement('img'), symbol = document.createElement('span');
         cell.className = 'gift-candy';
-        candy.src = `./assets/${COLORS[color].texture}.png?v=0.8.0`;
+        candy.src = `./assets/${COLORS[color].texture}.png?v=0.9.0`;
         candy.alt = '';
         candy.width = candy.height = 96;
         symbol.textContent = COLORS[color].symbol;
@@ -480,5 +489,5 @@ new Phaser.Game({
   type: Phaser.AUTO, parent: 'game', width: boardView().width * renderDensity, height: boardView().height * renderDensity, backgroundColor: '#fff8ef',
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   scene: SortScene, input: { activePointers: 2 }, disableContextMenu: true,
-  title: 'Magnetic Sort', version: '0.8.0'
+  title: 'Magnetic Sort', version: '0.9.0'
 });

@@ -3,11 +3,10 @@
 body { margin: 0; min-width: 280px; background: radial-gradient(ellipse at 12% 15%, #ffe2d2, transparent 48%), radial-gradient(ellipse at 88% 84%, #e9dcf4, transparent 50%), #fbf1e8; }
 .game-shell { width: min(100%, 540px); height: 100vh; height: 100dvh; max-height: 900px; margin: 0 auto; padding: max(6px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
 .game-card { height: 100%; display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid #fff; border-radius: 24px; background: #fffcf7; box-shadow: 0 3px 0 #e9d6df, inset 0 0 0 1px #eee0e6; }
-.hud { position: relative; flex: 0 0 48px; display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 0 3px; }
-.level-heading { display: flex; flex-direction: column; gap: 1px; white-space: nowrap; line-height: 1.1; min-width: 56px; }
+.hud { position: relative; flex: 0 0 48px; display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; gap: 6px; padding: 0 3px; }
+.level-heading { display: flex; flex-direction: column; align-items: center; gap: 1px; white-space: nowrap; line-height: 1.1; min-width: 56px; }
 .level-heading span { font-size: 11px; color: #82658c; }
 .level-heading strong { font-size: 19px; font-weight: 800; color: #70488e; }
-.toolbar { display: flex; gap: 4px; }
 button { font: inherit; font-size: 14px; font-weight: 650; color: #624774; background: linear-gradient(#fffefd, #f6edf9); border: 1px solid #ddcde5; cursor: pointer; border-radius: 15px; min-height: 44px; padding: 0 12px; touch-action: manipulation; box-shadow: 0 3px 0 #e2d1e8, inset 0 1px 0 #fff; transition: background .15s; -webkit-tap-highlight-color: transparent; }
 button:hover:not(:disabled) { background: #f0e2f8; }
 button:active:not(:disabled) { transform: translateY(2px) scale(.97); box-shadow: 0 1px 0 #d8c4e0; }
@@ -16,6 +15,7 @@ button:disabled { opacity: .46; cursor: default; box-shadow: none; }
 .icon-button { display: grid; place-items: center; flex: 0 0 44px; width: 44px; padding: 0; font-size: 20px; box-shadow: none; border-color: #e7dbea; background: #fcf7fb; }
 .icon-button svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 .board-wrap { flex: 1; min-height: 0; position: relative; border-radius: 20px; background: #fff8ef; overflow: hidden; }
+.board-wrap::after { content: ''; position: absolute; inset: 0; border: 2px solid #fffdf8; border-radius: inherit; box-shadow: inset 0 3px 7px #b98b7121, inset 0 -2px 0 #ecd8c98c, inset 0 0 0 6px #f3e4d63d; pointer-events: none; }
 #game { position: absolute; inset: 0; overflow: hidden; touch-action: none; }
 #game canvas { display: block; touch-action: none; }
 .notice { position: absolute; inset: 0 48px 0 0; display: flex; align-items: center; gap: 5px; padding: 0 0 0 10px; border-radius: 14px; background: #f0e6f7; z-index: 2; }

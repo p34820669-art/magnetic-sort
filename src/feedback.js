@@ -1,4 +1,4 @@
-import { COLORS } from './levels.js?v=0.8.0';
+import { COLORS } from './levels.js?v=0.9.0';
 
 // Presentation only. The resolver owns all moves; feedback never changes puzzle state.
 export class SortFeedback {
@@ -33,8 +33,8 @@ export class SortFeedback {
       const ball = this.scene.balls.get(`${transfer.from}:${transfer.fromSlot}`);
       this.pressedBalls.set(ball, { y: ball.y });
       const halo = this.own(this.scene.add.graphics({ x: ball.x, y: ball.y }).setDepth(7).setName('press-halo'));
-      halo.fillStyle(COLORS[move.color].fill, .13).fillCircle(0, 0, 25 * s);
-      halo.lineStyle(2, 0xffffff, .65).strokeCircle(0, 0, 22 * s);
+      halo.fillStyle(COLORS[move.color].fill, .13).fillCircle(0, 0, 28 * s);
+      halo.lineStyle(2, 0xffffff, .65).strokeCircle(0, 0, 25 * s);
       this.pressEffects.add(halo);
       if (!this.scene.gentleMotion) {
         this.scene.tweens.add({ targets: ball, scaleX: 1.18, scaleY: .82, y: ball.y + 3, duration: 85, ease: 'Quad.easeOut' });
@@ -61,8 +61,8 @@ export class SortFeedback {
   landing(x, y, color) {
     if (this.gentle) return;
     const s = this.scene.layout[0].scale;
-    const ring = this.own(this.scene.add.graphics({ x, y: y + 17 * s }).setDepth(24).setName('landing-ring'));
-    ring.lineStyle(2, color, .85).strokeEllipse(0, 0, 32 * s, 9 * s);
+    const ring = this.own(this.scene.add.graphics({ x, y: y + 19 * s }).setDepth(24).setName('landing-ring'));
+    ring.lineStyle(2, color, .85).strokeEllipse(0, 0, 36 * s, 10 * s);
     this.animate(ring, { scaleX: 2.1, scaleY: 1.5, alpha: 0, duration: 230, ease: 'Cubic.easeOut' }).then(() => this.remove(ring));
     const glint = this.own(this.scene.add.graphics({ x: x - 10 * s, y: y - 12 * s }).setDepth(24).setName('landing-glint'));
     glint.fillStyle(0xfff4d9).fillTriangle(0, -8, 3, 0, -3, 0).fillTriangle(0, 8, 3, 0, -3, 0)
@@ -110,7 +110,7 @@ export class SortFeedback {
   rim(index, color, strong = false) {
     const { x, top, scale: s } = this.scene.layout[index];
     const glow = this.own(this.scene.add.graphics().setDepth(6));
-    glow.fillStyle(color, strong ? .2 : .1).fillRoundedRect(x - 38 * s, top - 14 * s, 76 * s, 184 * s, 18 * s);
+    glow.fillStyle(color, strong ? .2 : .1).fillRoundedRect(x - 42 * s, top - 14 * s, 84 * s, 204 * s, 24 * s);
     this.scene.jarOutline(glow, x, top, s, color, strong ? 4 : 2, .9);
     this.fade(glow, strong ? 360 : 200);
   }
@@ -161,15 +161,16 @@ export class SortFeedback {
               .lineBetween(points[index - 1].x, points[index - 1].y, points[index].x, points[index].y);
           }
         };
-        const startY = scene.layout[transfer.from].top - 24 * scene.layout[transfer.from].scale;
+        const startY = scene.layout[transfer.from].top - 38 * scene.layout[transfer.from].scale;
         await this.animate(ball, { y: startY, scaleX: .88, scaleY: 1.14, duration: 120,
           ease: 'Cubic.easeOut', onUpdate: trace });
         const start = { x: ball.x, y: ball.y };
-        const end = { x: target.x, y: scene.layout[transfer.to].top - 24 * scene.layout[transfer.to].scale };
+        const end = { x: target.x, y: scene.layout[transfer.to].top - 38 * scene.layout[transfer.to].scale };
         const arc = { progress: 0 };
         const dx = end.x - start.x;
         const detour = Math.abs(dx) < 30 && Math.abs(end.y - start.y) > 100 ? (start.x < scene.view.width / 2 ? 90 : -90) : 0;
-        const controls = [Math.max(14, start.y - 48), Math.max(14, end.y - 48)];
+        const flightPadding = 32 * scene.layout[transfer.from].scale;
+        const controls = [Math.max(flightPadding, start.y - 48), Math.max(flightPadding, end.y - 48)];
         await this.animate(arc, { progress: 1, duration: 230, ease: 'Sine.easeInOut', onUpdate: () => {
           const t = arc.progress, u = 1 - t;
           ball.x = u ** 3 * start.x + 3 * u * u * t * (start.x + dx * .35 + detour) + 3 * u * t * t * (end.x - dx * .35 + detour) + t ** 3 * end.x;
@@ -194,7 +195,7 @@ export class SortFeedback {
   }
   async collect(move, moving) {
     const scene = this.scene, { x, top, scale: s } = scene.layout[move.destination], color = COLORS[move.color];
-    const centerY = top + 74 * s;
+    const centerY = top + 88 * s;
     const existing = [...scene.balls.entries()].filter(([key]) => key.startsWith(`${move.destination}:`)).map(([, ball]) => ball);
     const batch = [...existing, ...moving];
     this.phase = 'complete';
