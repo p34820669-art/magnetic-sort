@@ -1,10 +1,12 @@
-import { PuzzleSession, planMove, status } from './model.js?v=0.5.0';
-import { LEVELS, COLORS } from './levels.js?v=0.5.0';
-import { SortFeedback } from './feedback.js?v=0.5.0';
+import { PuzzleSession, planMove, status } from './model.js?v=0.6.0';
+import { LEVELS, COLORS } from './levels.js?v=0.6.0';
+import { SortFeedback } from './feedback.js?v=0.6.0';
 
 const ui = Object.fromEntries(['level-label', 'level-name', 'moves', 'levels', 'tip', 'progress',
   'color-progress', 'status-panel', 'next', 'message', 'undo', 'restart', 'sound', 'menu',
-  'level-dialog', 'close-menu', 'motion', 'motion-note'].map(id => [id, document.getElementById(id)]));
+  'level-dialog', 'close-menu', 'motion', 'motion-note', 'victory', 'victory-title', 'victory-detail', 'candy-box'].map(id => [id, document.getElementById(id)]));
+// Phaser 4.2.1 has no GameConfig.resolution: render a denser canvas, keep logical coordinates.
+const renderDensity = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
 const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
 const idleMessage = 'Удерживай стопку, чтобы увидеть маршрут.';
 const reasons = {
@@ -18,7 +20,7 @@ function tubeLayout(count) {
   return Array.from({ length: count }, (_, index) => {
     const row = Math.floor(index / columns);
     const inRow = Math.min(columns, count - row * columns);
-    return { x: (index % columns + .5) * (480 / inRow), top: count <= 4 ? 154 : 56 + row * 252 };
+    return { x: (index % columns + .5) * (480 / inRow), top: count <= 4 ? 144 : 56 + row * 252, scale: count <= 4 ? 1.25 : 1 };
   });
 }
 function receivers(state) {
@@ -44,10 +46,11 @@ class SortScene extends Phaser.Scene {
     this.emptyLabels = new Map();
   }
   preload() {
-    for (const { texture } of Object.values(COLORS)) if (texture) this.load.image(texture, `./assets/${texture}.png?v=0.5.0`);
-    for (const key of ['pickup', 'complete', 'land', 'win']) this.load.audio(key, `./assets/${key}.wav?v=0.5.0`);
+    for (const { texture } of Object.values(COLORS)) if (texture) this.load.image(texture, `./assets/${texture}.png?v=0.6.0`);
+    for (const key of ['pickup', 'complete', 'land', 'win']) this.load.audio(key, `./assets/${key}.wav?v=0.6.0`);
   }
   create() {
+    this.cameras.main.setOrigin(0, 0).setZoom(renderDensity);
     this.markers = this.add.graphics().setDepth(5);
     this.feedback = new SortFeedback(this);
     let motion = 'auto';
@@ -64,10 +67,15 @@ class SortScene extends Phaser.Scene {
     try { muted = localStorage.getItem('magnetic-sort-muted') === 'true'; } catch { /* Storage is optional. */ }
     this.setMuted(muted);
     ui.sound.addEventListener('click', () => this.setMuted(!this.muted));
+    const closeMenu = () => {
+      ui['level-dialog'].close();
+      // The dialog's close event is queued; the visible board must be ready immediately.
+      this.input.enabled = true;
+    };
     for (let index = 0; index < LEVELS.length; index++) {
       const button = document.createElement('button');
       button.textContent = `${index + 1}. ${LEVELS[index].name}`;
-      button.addEventListener('click', () => { this.openLevel(index); ui['level-dialog'].close(); });
+      button.addEventListener('click', () => { this.openLevel(index); closeMenu(); });
       ui.levels.append(button);
     }
     ui.menu.addEventListener('click', () => {
@@ -77,7 +85,7 @@ class SortScene extends Phaser.Scene {
       this.input.enabled = false;
       ui['level-dialog'].showModal();
     });
-    ui['close-menu'].addEventListener('click', () => ui['level-dialog'].close());
+    ui['close-menu'].addEventListener('click', closeMenu);
     ui['level-dialog'].addEventListener('close', () => { this.input.enabled = true; });
     ui.undo.addEventListener('click', () => this.undo());
     ui.restart.addEventListener('click', () => this.restart());
@@ -98,22 +106,19 @@ class SortScene extends Phaser.Scene {
     });
     this.input.on('gameout', () => { this.pressed = null; if (!this.busy) this.clearPreview(); });
     this.createInputZones();
-    this.openLevel(0);
     this.scale.on('resize', () => {
       if (!this.busy) { this.pressed = null; this.drawBoard(); }
     });
+    this.openLevel(0);
     // FIT must also react when DOM text or screen orientation changes the parent.
-    this.resizeObserver = new ResizeObserver(() => {
-      // Phaser 4.2.1 refresh() sizes from cached parentSize before reading new bounds.
-      this.scale.getParentBounds();
-      this.scale.refresh();
-    });
+    this.resizeObserver = new ResizeObserver(() => this.fitBoard());
     this.resizeObserver.observe(document.getElementById('game'));
 
     // Read-only diagnostics, available only to local QA. No game-state setters.
     if (new URLSearchParams(location.search).has('qa')) {
       window.__sortQA = { snapshot: () => ({
-        version: '0.5.0', state: structuredClone(this.session.state), busy: this.busy, level: this.levelIndex,
+        version: '0.6.0', state: structuredClone(this.session.state), busy: this.busy, level: this.levelIndex,
+        inputEnabled: this.input.enabled,
         status: status(this.session.state), history: this.session.history.length,
         renderer: this.game.renderer.type, receivers: receivers(this.session.state),
         preview: this.previewMove ? { ...this.previewMove } : null,
@@ -125,7 +130,9 @@ class SortScene extends Phaser.Scene {
         audio: { muted: this.muted, engineMuted: this.sound.mute, plays: { ...this.audioPlays },
           decoded: ['pickup', 'complete', 'land', 'win'].every(key => this.cache.audio.exists(key)),
           context: this.sound.context?.state ?? 'html5' },
-        centers: this.layout.map(({ x, top }) => ({ x, y: top + 80 }))
+        centers: this.layout.map(({ x, top, scale }) => ({ x, y: top + 80 * scale })),
+        presentation: { density: renderDensity, canvas: [this.game.canvas.width, this.game.canvas.height],
+          tubeScale: this.layout[0].scale, victoryVisible: !ui.victory.hidden }
       }) };
     }
     document.body.dataset.ready = 'true';
@@ -164,9 +171,9 @@ class SortScene extends Phaser.Scene {
   text(x, y, value, size = 14, color = '#74677d') {
     const readableSize = Math.max(size, 10 / (this.scale.displaySize.width / 480));
     return this.own(this.add.text(x, y, value, { fontFamily: 'Segoe UI, Arial, sans-serif',
-      fontSize: `${readableSize}px`, color }).setOrigin(.5));
+      fontSize: `${readableSize}px`, color }).setResolution(renderDensity).setOrigin(.5));
   }
-  position(index, slot) { const { x, top } = this.layout[index]; return { x, y: top + 140 - slot * 36 }; }
+  position(index, slot) { const { x, top, scale } = this.layout[index]; return { x, y: top + (140 - slot * 36) * scale }; }
   drawBoard() {
     this.feedback.releasePress();
     this.markers.clear();
@@ -179,7 +186,10 @@ class SortScene extends Phaser.Scene {
     this.zones.forEach((zone, index) => {
       const layout = this.layout[index];
       zone.setVisible(Boolean(layout));
-      if (layout) { zone.setPosition(layout.x, layout.top + 81); zone.setInteractive(); }
+      if (layout && status(this.session.state) !== 'won') {
+        zone.setPosition(layout.x, layout.top + 81 * layout.scale).setScale(layout.scale);
+        zone.setInteractive();
+      }
       else zone.disableInteractive();
     });
     const state = this.session.state;
@@ -187,37 +197,35 @@ class SortScene extends Phaser.Scene {
     const background = this.own(this.add.graphics());
     // Quiet confectionery tray: the candies carry the strongest contrast.
     background.fillStyle(0xfff8ef).fillRoundedRect(0, 0, 480, 520, 24);
+    if (status(state) === 'won') return;
     for (const [x, y, angle] of [[28, 102, -.5], [438, 142, .4], [38, 444, .5], [450, 392, -.5]]) {
       background.lineStyle(4, 0xe9d9db, .65).lineBetween(x, y, x + 7, y + angle * 10);
     }
     for (const [index, tube] of state.tubes.entries()) {
-      const { x, top } = this.layout[index];
+      const { x, top, scale: s } = this.layout[index];
       const receiver = tube.length && targets[tube[0]] === index;
-      const tint = receiver ? COLORS[tube[0]].fill : 0xbdaacb;
-      background.fillStyle(0x9f7a9e, .09).fillEllipse(x + 2, top + 175, 80, 18);
-      background.fillStyle(0xffffff, .66).fillRoundedRect(x - 38, top - 14, 76, 184, 22);
-      background.fillStyle(receiver ? tint : 0xe9dff3, receiver ? .09 : .3).fillRoundedRect(x - 34, top - 10, 68, 177, 19);
-      background.lineStyle(2.5, tint, .85).strokeRoundedRect(x - 38, top - 14, 76, 184, 22);
-      background.lineStyle(3, 0xffffff, .9).lineBetween(x - 31, top + 9, x - 31, top + 134);
-      background.lineStyle(1.5, 0xffffff, .8).lineBetween(x + 30, top + 20, x + 30, top + 123);
-      background.fillStyle(0xffffff, .7).fillEllipse(x, top - 14, 74, 12);
-      background.lineStyle(2.5, tint, .85).strokeEllipse(x, top - 14, 74, 12);
-      background.lineStyle(2, 0xffffff, .9).lineBetween(x - 23, top - 18, x + 17, top - 18);
-      background.lineStyle(3, 0xffffff, .65).lineBetween(x - 18, top + 163, x + 18, top + 163);
+      const tint = receiver ? COLORS[tube[0]].fill : 0x9e82b2;
+      background.save().translateCanvas(x, top).scaleCanvas(s, s);
+      background.fillStyle(0x8e6b96, .16).fillEllipse(2, 175, 80, 16);
+      background.fillStyle(0xffffff, .8).fillRoundedRect(-38, -14, 76, 184, 22);
+      background.fillStyle(receiver ? tint : 0xe9dff3, receiver ? .09 : .28).fillRoundedRect(-34, -10, 68, 177, 19);
+      background.lineStyle(2.5, tint, .95).strokeRoundedRect(-38, -14, 76, 184, 22);
+      background.lineStyle(3, 0xffffff, .95).lineBetween(-31, 9, -31, 134);
+      background.lineStyle(1.5, 0xffffff, .9).lineBetween(30, 20, 30, 123);
+      background.fillStyle(0xffffff, .85).fillEllipse(0, -14, 74, 12);
+      background.lineStyle(2.5, tint, .95).strokeEllipse(0, -14, 74, 12);
+      background.lineStyle(2, 0xffffff, .95).lineBetween(-23, -18, 17, -18);
+      background.lineStyle(3, 0xffffff, .8).lineBetween(-18, 163, 18, 163);
       if (receiver) {
         // Large U-shaped magnet. The dedicated lesson explains the symbol.
-        background.lineStyle(5, tint).beginPath().moveTo(x - 12, top - 46)
-          .lineTo(x - 12, top - 29).lineTo(x + 12, top - 29).lineTo(x + 12, top - 46).strokePath();
-        background.lineStyle(5, 0x655170).lineBetween(x - 12, top - 46, x - 12, top - 41)
-          .lineBetween(x + 12, top - 46, x + 12, top - 41);
+        background.lineStyle(5, tint).beginPath().moveTo(-12, -46)
+          .lineTo(-12, -29).lineTo(12, -29).lineTo(12, -46).strokePath();
+        background.lineStyle(5, 0x655170).lineBetween(-12, -46, -12, -41)
+          .lineBetween(12, -46, 12, -41);
       }
-      for (let slot = 0; slot < 4; slot++) {
-        const point = this.position(index, slot);
-        background.lineStyle(1, 0xbca9c6, .22).strokeCircle(point.x, point.y, 18);
-      }
-      background.fillStyle(0xffffff, .8).fillRoundedRect(x - 36, top + 178, 72, 26, 13);
-      this.fillLabels.set(index, this.text(x, top + 191, `${index + 1}  ·  ${tube.length}/4`, 16, receiver ? COLORS[tube[0]].ink : '#74677d'));
-      if (!tube.length) this.emptyLabels.set(index, this.text(x, top + 76, 'пусто', 15, '#86768f'));
+      background.fillStyle(0xffffff, .85).fillRoundedRect(-36, 178, 72, 26, 13);
+      background.restore();
+      this.fillLabels.set(index, this.text(x, top + 191 * s, `${index + 1}  ·  ${tube.length}/4`, 16 * s, receiver ? COLORS[tube[0]].ink : '#6d577c'));
       for (const [slot, color] of tube.entries()) {
         const point = this.position(index, slot);
         this.balls.set(`${index}:${slot}`, this.own(this.makeBall(point.x, point.y, color)));
@@ -225,9 +233,9 @@ class SortScene extends Phaser.Scene {
       if (tube.length) {
         const point = this.position(index, tube.length - 1);
         if (planMove(state, index).valid) {
-          background.lineStyle(2, COLORS[tube.at(-1)].fill, .65).strokeCircle(point.x, point.y, 23);
+          background.lineStyle(2, COLORS[tube.at(-1)].fill, .8).strokeCircle(point.x, point.y, 23 * s);
         } else {
-          this.text(x + 28, point.y - 9, '×', 18, '#86768f').setDepth(3);
+          this.text(x + 28 * s, point.y - 9 * s, '×', 18 * s, '#79638a').setDepth(3);
         }
       }
 
@@ -273,9 +281,20 @@ class SortScene extends Phaser.Scene {
     if (color === 'E') ball.lineBetween(-7, 0, 7, 0).lineBetween(0, -7, 0, 7);
     if (color === 'F') ball.lineBetween(-7, -3, 7, -3).lineBetween(-7, 3, 7, 3);
     // Unit root scale keeps the existing press, flight and landing tweens intact.
-    return this.add.container(x, y, [shadow, candy, ball]).setDepth(2);
+    const visual = this.add.container(0, 0, [shadow, candy, ball]).setScale(this.layout[0].scale);
+    return this.add.container(x, y, [visual]).setDepth(2);
   }
-  say(message) { ui.message.textContent = message; }
+  fitBoard() {
+    const rect = document.getElementById('game').getBoundingClientRect();
+    const bounds = `${rect.x}:${rect.y}:${rect.width}:${rect.height}`;
+    if (bounds === this.boardBounds) return;
+    this.boardBounds = bounds;
+    // Update synchronously when the HUD changes; ResizeObserver follows a frame later.
+    // Phaser 4.2.1 refresh() reads cached parentSize, so update its bounds first.
+    this.scale.getParentBounds();
+    this.scale.refresh();
+  }
+  say(message) { ui.message.textContent = message; this.fitBoard(); }
   clearPreview(resetMessage = true) {
     this.feedback.releasePress();
     this.markers.clear();
@@ -289,7 +308,8 @@ class SortScene extends Phaser.Scene {
     if (!move.valid) { this.say(reasons[move.reason]); return; }
     this.previewMove = { source: index, destination: move.destination, color: move.color };
     const destination = this.layout[move.destination];
-    const end = { x: destination.x, y: destination.top - 18 };
+    const s = destination.scale;
+    const end = { x: destination.x, y: destination.top - 18 * s };
     const sourceIndices = [...new Set(move.transfers.map(transfer => transfer.from))];
     this.markers.lineStyle(2, COLORS[move.color].fill, .6);
     for (const source of sourceIndices) {
@@ -302,9 +322,9 @@ class SortScene extends Phaser.Scene {
     this.markers.lineStyle(3, COLORS[move.color].fill);
     for (const transfer of move.transfers) {
       const point = this.position(transfer.from, transfer.fromSlot);
-      this.markers.strokeCircle(point.x, point.y, 21);
+      this.markers.strokeCircle(point.x, point.y, 21 * s);
     }
-    this.markers.strokeRoundedRect(destination.x - 41, destination.top - 17, 82, 190, 20);
+    this.markers.strokeRoundedRect(destination.x - 41 * s, destination.top - 17 * s, 82 * s, 190 * s, 20 * s);
     const total = this.session.state.tubes[move.destination].length + move.transfers.length;
     this.say(`В приёмник № ${move.destination + 1} → ${total}/4${move.dispatch ? ' · партия готова!' : ' · остальные пока спрятаны.'}`);
   }
@@ -358,6 +378,10 @@ class SortScene extends Phaser.Scene {
   }
   refresh() {
     const state = this.session.state, result = status(state);
+    const won = result === 'won' && !this.busy;
+    document.querySelector('.game-shell').classList.toggle('is-won', won);
+    ui.victory.hidden = !won;
+    document.getElementById('game').setAttribute('aria-hidden', String(won));
     const colors = [...new Set(this.session.initial.tubes.flat())].sort();
     ui['level-label'].textContent = `УРОВЕНЬ ${this.levelIndex + 1} / ${LEVELS.length}`;
     ui['level-name'].textContent = LEVELS[this.levelIndex].name;
@@ -391,17 +415,31 @@ class SortScene extends Phaser.Scene {
     if (result === 'won' && !this.busy) {
       const finished = this.levelIndex === LEVELS.length - 1;
       ui.next.textContent = finished ? 'Ещё раз →' : 'Дальше →';
-      this.say(finished ? `Все шесть уровней пройдены! Последний — за ${state.moves} ходов.` : `Поле свободно! Все партии собраны за ${state.moves} ходов.`);
+      ui['victory-title'].textContent = 'Готово!';
+      const moves = state.moves, ending = moves % 10 === 1 && moves % 100 !== 11 ? 'ход' : moves % 10 >= 2 && moves % 10 <= 4 && !(moves % 100 >= 12 && moves % 100 <= 14) ? 'хода' : 'ходов';
+      ui['victory-detail'].textContent = `За ${moves} ${ending}`;
+      ui['candy-box'].replaceChildren(...colors.flatMap(color => Array.from({ length: 4 }, () => {
+        const cell = document.createElement('span'), candy = document.createElement('img'), symbol = document.createElement('span');
+        cell.className = 'gift-candy';
+        candy.src = `./assets/${COLORS[color].texture}.png?v=0.6.0`;
+        candy.alt = '';
+        candy.width = candy.height = 96;
+        symbol.textContent = COLORS[color].symbol;
+        cell.append(candy, symbol);
+        return cell;
+      })));
+      this.say('');
     }
     if (result === 'stuck' && !this.busy) {
       this.say('Нет места для сбора. Отмени ход и попробуй открыть приёмник.');
     }
+    this.fitBoard();
   }
 }
 
 new Phaser.Game({
-  type: Phaser.AUTO, parent: 'game', width: 480, height: 520, backgroundColor: '#fff8ef',
+  type: Phaser.AUTO, parent: 'game', width: 480 * renderDensity, height: 520 * renderDensity, backgroundColor: '#fff8ef',
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   scene: SortScene, input: { activePointers: 2 }, disableContextMenu: true,
-  title: 'Magnetic Sort', version: '0.5.0'
+  title: 'Magnetic Sort', version: '0.6.0'
 });

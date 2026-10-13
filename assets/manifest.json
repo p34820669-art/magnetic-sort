@@ -1,5 +1,5 @@
 {
-    "version":  "0.5.0",
+    "version":  "0.6.0",
     "provenance":  "Original procedural audio and code-native UI; candy sprites generated with built-in image_gen, no external image references",
     "generator":  "scripts/generate-audio.mjs",
     "regenerate":  "node scripts/generate-audio.mjs",
@@ -38,7 +38,7 @@
                                     "style.css",
                                     "favicon.svg"
                                 ],
-                    "direction":  "Glossy mint, coral, violet and lemon candies; cream tray; translucent glass containers; plum text and lavender controls. Geometric symbols remain readable independently of color. Existing motion retained.",
+                    "direction":  "Glossy mint, coral, violet and lemon candies; cream tray; translucent glass containers; plum text and lavender controls. Geometric symbols remain readable independently of color. Existing motion retained. Four-tube boards scale objects by 1.25; canvas and text render at up to 2x density. Persistent CSS candy box reuses the same four PNGs.",
                     "generation":  "Built-in image_gen, 2026-10-13",
                     "imageGenerationPrompts":  [
                                                    "Create one production sprite sheet asset for a mobile candy sorting puzzle, exactly FOUR separate glossy hard candy discs in a precise 2 by 2 grid on a genuinely TRANSPARENT background. Square canvas. Each quadrant has one identical-size candy centered at (25%,25%), (75%,25%), (25%,75%), (75%,75%). Each disc occupies 31 percent of total canvas width and height, leaving generous completely transparent space between them.\nTop left: saturated mint turquoise candy. Top right: saturated watermelon coral candy. Bottom left: rich lavender purple candy. Bottom right: warm golden yellow candy. All four have the SAME perfectly round silhouette and front-facing orthographic camera, inflated lentil shape, smooth edible sugar glaze with luxurious broad soft specular reflection at upper left, subtle darker lower rim, clean softly lit center. Cute polished 3D casual game art, highly legible at 36 pixels diameter. Strong saturated midtones, restrained white highlight occupying under 15% of surface. Absolutely no faces, no symbols, no letters, no text, no wrappers, no sticks, no fruit, no sprinkles, no borders, no labels, no checkered backdrop, no ground plane. No cast shadows outside the discs. Only four isolated matching round candy objects. Preserve genuine alpha transparency.\n"

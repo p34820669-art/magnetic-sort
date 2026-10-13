@@ -6,9 +6,9 @@
     <meta name="theme-color" content="#fbf1e8">
     <title>Магнитная сортировка</title>
     <link rel="icon" href="./favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="./style.css?v=0.5.0">
+    <link rel="stylesheet" href="./style.css?v=0.6.0">
     <script defer src="./vendor/phaser.min.js"></script>
-    <script type="module" src="./src/main.js?v=0.5.0"></script>
+    <script type="module" src="./src/main.js?v=0.6.0"></script>
   </head>
   <body>
     <main class="game-shell">
@@ -28,7 +28,13 @@
           <p id="tip" class="tip"></p>
           <div class="progress-row"><span>Собрано <strong id="progress">0 / 2</strong></span><div id="color-progress" aria-label="Цветовые партии"></div></div>
         </div>
-        <div class="board-wrap"><div id="game" aria-label="Поле сортировки. Клавиши 1–6 выбирают стопку."></div></div>
+        <div class="board-wrap">
+          <div id="game" aria-label="Поле сортировки. Клавиши 1–6 выбирают стопку."></div>
+          <section id="victory" class="victory" hidden aria-labelledby="victory-title">
+            <div class="victory-copy" role="status" aria-live="polite"><h2 id="victory-title">Готово!</h2><p id="victory-detail"></p></div>
+            <div class="gift-box" aria-hidden="true"><div class="gift-lid"></div><div id="candy-box" class="candy-box"></div><span class="gift-seal">✓</span></div>
+          </section>
+        </div>
         <div class="bottom-panel">
           <div id="status-panel" class="status-panel">
             <p id="message" role="status" aria-live="polite">Собери по четыре одинаковых и очисти поле.</p>
@@ -49,7 +55,7 @@
         </label>
         <p id="motion-note" class="menu-help"></p>
         <p class="menu-help">Удерживай стопку, чтобы увидеть маршрут. Уведи палец за её край, чтобы отменить касание.</p>
-        <p class="shortcuts">Клавиши: 1–6 — стопка · Z — отменить · R — заново · v0.5.0</p>
+        <p class="shortcuts">Клавиши: 1–6 — стопка · Z — отменить · R — заново · v0.6.0</p>
       </dialog>
       <noscript>Для запуска игры включите JavaScript в браузере.</noscript>
     </main>
