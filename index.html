@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#111a29">
+    <title>Магнитная сортировка</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="./style.css">
+    <script defer src="./vendor/phaser.min.js"></script>
+    <script type="module" src="./src/main.js"></script>
+  </head>
+  <body>
+    <main class="game-shell">
+      <header class="title">
+        <h1>Магнитная<br>сортировка</h1>
+        <div class="toolbar">
+          <button id="sound" aria-label="Выключить звук" aria-pressed="false" title="Выключить звук">Звук: вкл</button>
+          <button id="menu" aria-haspopup="dialog">Уровни</button>
+        </div>
+      </header>
+      <section class="game-card" aria-label="Игра">
+        <div class="intro">
+          <div class="level-heading">
+            <div><p class="eyebrow" id="level-label">УРОВЕНЬ 1 / 6</p><h2 id="level-name">Первый сбор</h2></div>
+            <p class="move-count">Ходы <strong id="moves">0</strong></p>
+          </div>
+          <p id="tip" class="tip"></p>
+          <div class="progress-row"><span>Собрано <strong id="progress">0 / 2</strong></span><div id="color-progress" aria-label="Цветовые партии"></div></div>
+        </div>
+        <div class="board-wrap"><div id="game" aria-label="Поле сортировки. Клавиши 1–6 выбирают стопку."></div></div>
+        <div class="bottom-panel">
+          <div id="status-panel" class="status-panel">
+            <p id="message" role="status" aria-live="polite">Собери по четыре одинаковых и очисти поле.</p>
+          </div>
+          <div class="controls">
+            <button id="undo" title="Отменить ход (Z)" disabled>↶ Отменить</button>
+            <button id="restart" title="Начать заново (R)">↻ Заново</button>
+            <button id="next" class="primary" hidden>Дальше →</button>
+          </div>
+        </div>
+      </section>
+      <dialog id="level-dialog" aria-labelledby="menu-title">
+        <div class="dialog-heading"><h2 id="menu-title">Выбери уровень</h2><button id="close-menu" aria-label="Закрыть меню">✕</button></div>
+        <p class="menu-help">Собери по четыре одинаковых и очисти поле.</p>
+        <nav id="levels" aria-label="Выбор уровня"></nav>
+        <p class="menu-help">Удерживай стопку, чтобы увидеть маршрут. Уведи палец за её край, чтобы отменить касание.</p>
+        <p class="shortcuts">Клавиши: 1–6 — стопка · Z — отменить · R — заново</p>
+      </dialog>
+      <noscript>Для запуска игры включите JavaScript в браузере.</noscript>
+    </main>
+  </body>
+</html>
