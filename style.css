@@ -93,10 +93,17 @@ body { background: radial-gradient(ellipse at 50% 30%, #90e5f5, #6084d4 80%); }
 .game-shell { background: #64c7f3 url('./assets/candy-world.png?v=0.13.0') center / cover no-repeat; box-shadow: 0 0 70px #30357f45; }
 .game-card { background: transparent; border-color: transparent; border-radius: 0; box-shadow: none; }
 .hud { padding: 0 2px; gap: 10px; }
-.level-heading { justify-self: center; min-width: 138px; padding: 5px 16px; border: 1px solid #dfb0ff; border-radius: 19px;
+.level-heading { justify-self: center; width: 100%; max-width: 172px; min-width: 0; padding: 4px 8px; border: 1px solid #dfb0ff; border-radius: 19px;
   background: linear-gradient(#b45df4 0%, #9a42e2 43%, #7830bf 100%); box-shadow: inset 0 2px 2px #ffffff73, inset 0 -3px 3px #4b148766, 0 3px 0 #4c278c, 0 5px 8px #294d8b35; }
 .level-heading span { color: #fff7ff; font-size: 10px; font-weight: 850; text-transform: uppercase; letter-spacing: .8px; text-shadow: 0 1px 1px #6b268e; }
 .level-heading strong { color: #fff; font-size: 21px; font-weight: 900; text-shadow: 0 2px 0 #5a218e; }
+.level-value { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.level-progress { display: flex; align-items: center; gap: 3px; min-height: 13px; }
+.progress-candy { display: grid; place-items: center; width: 13px; height: 13px; flex: 0 0 13px; border-radius: 50%;
+  color: var(--candy-ink); background: var(--candy-fill); font-size: 9px; font-weight: 900; line-height: 1;
+  opacity: .42; transform: scale(.88); border: 1px solid #fff9; text-shadow: none;
+  box-shadow: inset 0 1px 2px #fff9, 0 1px 1px #411b6a99; transition: opacity .18s, transform .18s, box-shadow .18s; }
+.progress-candy.collected { opacity: 1; transform: scale(1); box-shadow: inset 0 1px 2px #fffc, 0 0 0 1px #fff, 0 1px 3px #401170b3; }
 button { position: relative; font-weight: 800; color: #fff; border: 1px solid #f5c3ff;
   background: linear-gradient(#b675f5, #964bdf 52%, #7835bd); text-shadow: 0 1px 1px #542080;
   box-shadow: inset 0 2px 2px #ffffff7d, inset 0 -3px 2px #64348b70, 0 3px 0 #573185, 0 5px 7px #30437a30; }
@@ -131,7 +138,7 @@ button:disabled { opacity: .65; filter: saturate(.45); box-shadow: inset 0 1px 2
   box-shadow: inset 0 3px 3px #ffffff99, 0 8px 0 #6b3e9b, 0 16px 26px #51469350; }
 .gift-seal { background: linear-gradient(#b8f555, #72ca1e); border-color: #edffbf; color: white; text-shadow: 0 2px #498224; }
 dialog { color: #4a3076; border: 2px solid #f3d1ff; background: linear-gradient(#fff7ff, #eee4fb);
-  box-shadow: inset 0 3px 0 #fff, 0 6px 0 #7345a5, 0 18px 60px #24386b80; }
+  box-shadow: inset 0 3px 0 #fff, 0 6px 0 #7345a5, 0 18px 60px #24386b80; overflow-y: auto; }
 dialog::backdrop { background: #21204f99; }
 .dialog-heading h1, .dialog-heading h2 { color: #7140a4; font-weight: 900; }
 #levels { gap: 9px; }
@@ -144,12 +151,80 @@ dialog::backdrop { background: #21204f99; }
 .menu-help, .shortcuts { color: #756087; }
 .motion-setting select { border-color: #cda4e8; background: #fff9ff; color: #624080; }
 @media (max-width: 360px) {
-  .level-heading { min-width: 122px; padding: 5px 10px; }
-  .level-heading strong { font-size: 20px; }
+  .level-heading { padding: 4px 5px; }
+  .level-heading strong { font-size: 18px; }
+  .level-value { gap: 4px; }
+  .progress-candy { width: 11px; height: 11px; flex-basis: 11px; font-size: 8px; }
   .victory-copy h2 { font-size: 30px; }
 }
 @media (orientation: landscape) and (max-height: 500px) and (min-width: 600px) {
   .game-shell { background-position: center 62%; }
-  .level-heading { flex-direction: row; gap: 8px; min-height: 40px; }
+  .level-heading { min-height: 40px; }
   .victory-copy h2 { font-size: 29px; }
+}
+body[data-motion="gentle"] .progress-candy { transition: none; }
+
+/* Welcome shares the illustrated world with the board; only the active screen accepts input. */
+.game-shell { position: relative; }
+body[data-screen="home"] .game-card { visibility: hidden; pointer-events: none; }
+.welcome { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column;
+  padding: max(16px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(22px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  background: radial-gradient(ellipse at 50% 47%, #eafffc45, transparent 62%); }
+.welcome-tools { display: flex; justify-content: space-between; flex: 0 0 44px; }
+.welcome-content { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: clamp(8px, 2vh, 20px); padding-bottom: 2vh; }
+.welcome-title { flex: 0 0 auto; position: relative; z-index: 1; text-align: center; text-transform: uppercase; transform: rotate(-3deg); line-height: 1.08; }
+.welcome-title span { display: block; font-size: clamp(23px, 6.7vw, 34px); color: #fff; font-weight: 950; letter-spacing: .4px;
+  -webkit-text-stroke: 1px #7341b3; paint-order: stroke fill; text-shadow: 0 3px 0 #7336a8, 0 5px 0 #4c3485, 0 8px 12px #36499660; }
+.welcome-title strong { display: block; font-size: clamp(29px, 8.6vw, 43px); font-weight: 950; letter-spacing: -.8px; color: #ffe97d;
+  -webkit-text-stroke: 1.5px #945599; paint-order: stroke fill; text-shadow: 0 3px 0 #ae538e, 0 6px 0 #654095, 0 9px 14px #36499660; }
+.welcome-hero { flex: 0 1 310px; position: relative; width: min(100%, 350px); aspect-ratio: 320 / 300; min-height: 170px; }
+.hero-glow { position: absolute; inset: -8%; border-radius: 50%; background: radial-gradient(ellipse, #fffddbb8, #e9fff653 35%, transparent 66%); }
+.hero-magnet { position: absolute; left: 18%; top: 26%; width: 66%; animation: magnet-hover 5s ease-in-out infinite; filter: drop-shadow(0 6px 8px #3a459229); }
+.hero-magnet svg, .hero-sparkles { display: block; width: 100%; height: 100%; }
+.hero-sparkles { position: absolute; inset: 0; animation: welcome-shimmer 4s ease-in-out infinite; }
+.hero-candy { position: absolute; width: 27%; aspect-ratio: 1; animation: candy-hover 4.5s ease-in-out infinite; filter: drop-shadow(0 7px 6px #3d519b38); }
+.hero-candy img { display: block; width: 100%; height: 100%; }
+.hero-candy svg { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; stroke: #392442; stroke-width: 2.8; stroke-linejoin: round; filter: drop-shadow(0 1px 0 #fff9); }
+.hero-mint { top: 3%; left: 16%; --tilt: -13deg; }
+.hero-coral { top: 1%; left: 55%; --tilt: 12deg; animation-delay: -1.2s; }
+.hero-violet { top: 48%; left: 0; width: 24%; --tilt: -17deg; animation-delay: -2.1s; }
+.hero-lemon { top: 48%; right: 0; width: 24%; --tilt: 14deg; animation-delay: -.7s; }
+.welcome-actions { flex: 0 0 auto; width: min(100%, 252px); display: flex; flex-direction: column; align-items: stretch; gap: 13px; }
+.welcome-play { display: flex; align-items: center; justify-content: center; gap: 12px; flex: 0 0 auto; min-height: 62px; border-radius: 22px; font-size: 25px; font-weight: 900; }
+.welcome-play svg { width: 25px; height: 25px; fill: #fff; filter: drop-shadow(0 2px 0 #46891b); }
+.welcome-levels { align-self: center; min-width: 144px; min-height: 44px; border-radius: 16px; font-size: 17px; }
+.welcome-status { text-align: center; font-size: 13px; color: #493377; margin: 0; }
+.welcome-progress { text-align: center; color: #4e3978; font-size: 13px; font-weight: 700; margin: -3px 0 0;
+  align-self: center; padding: 4px 11px; border-radius: 12px; background: #efffff9e; }
+.level-title { display: block; padding-right: 14px; }
+.level-record { display: block; margin-top: 4px; font-size: 11px; font-weight: 650; line-height: 1.25; color: #745090; }
+.level-record:empty { display: none; }
+#levels button[aria-current="step"] .level-record { color: #fff4ff; }
+.level-check { position: absolute; top: 6px; right: 6px; width: 16px; height: 16px; display: grid; place-items: center;
+  border: 1px solid #f0ffd1; border-radius: 50%; color: #fff; background: linear-gradient(#9bdd40, #54ad18); font-size: 12px; text-shadow: 0 1px #41801d; }
+.home-link { width: 100%; margin-top: 18px; min-height: 44px; }
+#level-dialog[data-mode="settings"] #levels, #level-dialog[data-mode="settings"] .menu-subtitle,
+#level-dialog[data-mode="levels"] .menu-subtitle, #level-dialog[data-mode="levels"] .menu-actions,
+#level-dialog[data-mode="levels"] .motion-setting, #level-dialog[data-mode="levels"] .menu-help,
+#level-dialog[data-mode="levels"] .shortcuts, #level-dialog[data-mode="settings"] .shortcuts { display: none; }
+@keyframes magnet-hover { 0%, 100% { transform: translateY(3px) rotate(-5deg); } 50% { transform: translateY(-5px) rotate(3deg); } }
+@keyframes candy-hover { 0%, 100% { transform: translateY(2px) rotate(var(--tilt)); } 50% { transform: translateY(-8px) rotate(calc(var(--tilt) + 6deg)); } }
+@keyframes welcome-shimmer { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+body[data-screen="game"] .welcome-hero *, body[data-motion="gentle"] .welcome-hero * { animation: none; }
+@media (prefers-reduced-motion: reduce) { body:not([data-motion="full"]) .welcome-hero * { animation: none; } }
+@media (max-height: 620px) and (orientation: portrait) {
+  .welcome { padding-top: max(12px, env(safe-area-inset-top)); padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+  .welcome-content { gap: 10px; padding-bottom: 0; }
+  .welcome-hero { flex-basis: 230px; max-width: 265px; }
+  .welcome-play { min-height: 56px; font-size: 23px; }
+}
+@media (orientation: landscape) and (max-height: 500px) and (min-width: 600px) {
+  .welcome { padding: 14px 22px; }
+  .welcome-content { display: grid; grid-template-columns: minmax(220px, 340px) minmax(220px, 290px); grid-template-rows: auto auto; align-content: center; justify-content: center; column-gap: 28px; row-gap: 25px; padding-bottom: 10px; }
+  .welcome-hero { grid-column: 1; grid-row: 1 / 3; width: min(100%, 290px); height: 250px; min-height: 0; justify-self: center; }
+  .welcome-title { grid-column: 2; grid-row: 1; align-self: end; }
+  .welcome-title span { font-size: 24px; }
+  .welcome-title strong { font-size: 31px; }
+  .welcome-actions { grid-column: 2; grid-row: 2; align-self: start; justify-self: center; }
+  .welcome-play { min-height: 56px; font-size: 23px; }
 }

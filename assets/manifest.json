@@ -1,5 +1,18 @@
 {
-    "version":  "0.13.0",
+    "version":  "0.17.0",
+    "audioMix": {
+        "gainsDb": { "pickup": -1.5, "complete": -2.5, "land": 0, "win": 0, "seal": 0, "unlock": -2, "undo": -4 },
+        "landVoices": 4,
+        "landingPlayback": "volume 0.82; rate 0.98 + order*0.035 + colorIndex*0.004; four retained voices for overlapping tails",
+        "validation": "qa/v0.17/audio-analysis.json; all individual peaks below -6 dBFS; representative four-landing mixes below -14 dBFS",
+        "preview": "qa/v0.17/sound-preview.wav"
+    },
+    "welcome": {
+        "source": "Original code-native SVG magnet and HTML/CSS title/buttons in index.html and style.css; existing generated candy sprites and candy-world background reused",
+        "references": "Layout principles from local Animal Sort, Jump Tower Hero and Pocket Warrior screenshots; no reference artwork extracted",
+        "direction": "art/WELCOME.txt",
+        "motion": "Gentle floating and sparkle opacity; disabled by gentle motion preference or system reduced motion"
+    },
     "provenance":  "Original procedural audio and code-native UI; candy sprites generated with built-in image_gen, no external image references",
     "generator":  "scripts/generate-audio.mjs",
     "regenerate":  "node scripts/generate-audio.mjs",
@@ -9,19 +22,25 @@
                        "file":  "pickup.wav",
                        "durationMs":  110,
                        "purpose":  "Each valid gather",
-                       "recipe":  "Rising sine, 6 ms attack, quadratic decay, amplitude 0.18"
+                       "recipe":  "Rounded candy pop: integrated 410 to 670 Hz sweep, quiet 2.03x harmonic and deterministic high-passed contact noise; 2.5 ms attack, 31 ms decay",
+                       "bytes": 4896,
+                       "sha256": "41F406B85DA6C49244A104924CFFB63751463721B3FC960BD562155E2F690ED5"
                    },
                    {
                        "file":  "complete.wav",
-                       "durationMs":  280,
+                       "durationMs":  230,
                        "purpose":  "Completed group of four",
-                       "recipe":  "E5/G#5/B5, staggered 0/60/110 ms, quadratic decay, summed peak below -6 dBFS; soft low pop on release"
+                       "recipe":  "Short E5/B5 reward, staggered 0/40 ms with a soft 170 Hz release pop; 230 ms, no long chord masking the latch",
+                       "bytes": 10188,
+                       "sha256": "F90C625B94FEE0DB8F1D82B029F47CAB03723818F7DF6ACA79877B1E042C829F"
                    },
                    {
                        "file":  "land.wav",
-                       "durationMs":  75,
+                       "durationMs":  95,
                        "purpose":  "Individual landing",
-                       "recipe":  "Soft falling sine with quiet harmonic; pitch rises per arriving ball"
+                       "recipe":  "255 Hz soft candy contact plus quiet damped glass modes at 1680/2860 Hz and a deterministic short contact tick; 95 ms",
+                       "bytes": 4234,
+                       "sha256": "46E1F74A3901EEAB288CDB079B5946437450D1C20A8237E9589FDF5E01883D6E"
                    },
                    {
                        "file":  "win.wav",
@@ -31,11 +50,27 @@
                    },
                    {
                        "file":  "seal.wav",
-                       "durationMs":  240,
+                       "durationMs":  190,
                        "purpose":  "Rubber lid contact on completed group of four",
-                       "recipe":  "Integrated exponential 310 to 105 Hz body sweep, damped 2.35x shell harmonic, deterministic low-pass air puff, 1.8 ms attack, soft tail; plays at contact, rate 0.98/1/1.02, volume 0.88",
-                       "bytes":  10628,
-                       "sha256":  "02F009A16792A5202F114F1163E78835199B15884ED5C95F556D82B61E34896B"
+                       "recipe":  "Crisp 4 ms contact tick, warm integrated 262 to 112 Hz rubber thump, damped 1.9x harmonic and quiet seal snap at 34 ms; 190 ms tail, rate 0.98/1/1.02, volume 0.82",
+                       "bytes":  8424,
+                       "sha256":  "7F89F73385300C1C5CE0503633EFEE8F059F285252196AF9D7AC803F76CAC0DB"
+                   },
+                   {
+                       "file": "unlock.wav",
+                       "durationMs": 160,
+                       "purpose": "One latch cue when the color key reaches the opened lock",
+                       "recipe": "Deterministic filtered latch clicks at 0/27 ms, damped metal modes 580/1160 Hz; 160 ms",
+                       "bytes": 7100,
+                       "sha256": "FDBD9E8F5F4C3D94220549878C09ED5D140F7AB8BB64FDE80021BBC0E1C36FE4"
+                   },
+                   {
+                       "file": "undo.wav",
+                       "durationMs": 150,
+                       "purpose": "One quiet reverse cue per successful undo",
+                       "recipe": "Integrated falling 740 to 340 Hz sweep, low-passed deterministic air and quiet half-frequency harmonic; 150 ms",
+                       "bytes": 6660,
+                       "sha256": "30F66C035B0BD59494A865A7669F74628461D805D6B98D3D99ABF1DCDE4DDCDA"
                    }
                ],
     "visuals":  {
@@ -47,6 +82,7 @@
                                     "favicon.svg"
                                 ],
                     "direction":  "Candy world 0.12.0: original illustrated confectionery sky garden, quiet cyan center and pastel clouds/islands at the edges. Pink glossy navigation, purple level and undo, green next button, unified menu/help/victory. Transparent illustrated jar with three Phaser frames: rim (168,91,688,176), body (168,267,688,1000), foot (168,1267,688,214); render heights 24/174/22, width 94 before jar scale, top -22 and bottom 198. Body width about 83; four original glossy candy textures and geometric symbols preserved. Portrait row tops 90/430, existing scale and hit areas retained. Raised color locks and rounded receiver magnets. CSS world under transparent canvas, DPR capped at 2. Prior contact/key-flight effects retained; gentle mode unchanged. 0.13.0: color-matched procedural silicone lid seals each completed group before dispatch; 200 ms fall, 60 ms squash to 1.10x0.70, 160 ms spring return, 100 ms seated hold; 140 ms fade and 160 ms hold in gentle mode. Rounded skirt, sealing lip and soft top-left gradients baked once per color into a 448x160 CanvasTexture; no extra downloaded images. Upper-row fall height constrained to available space.",
+                    "revision":  "0.13.2: the narrow 70-unit stopper keeps its 58-unit plug seated 6 units inside the 94-unit jar mouth, but the silicone crown rises about 10 units above the glass rim and its visible sidewall is taller. The front 30% of the rim still overlaps it. 0.13.1 seal SFX and other audio remain unchanged.",
                     "generation":  "Built-in image_gen, 2026-10-13",
                     "imageGenerationPrompts":  [
                                                    "Create one production sprite sheet asset for a mobile candy sorting puzzle, exactly FOUR separate glossy hard candy discs in a precise 2 by 2 grid on a genuinely TRANSPARENT background. Square canvas. Each quadrant has one identical-size candy centered at (25%,25%), (75%,25%), (25%,75%), (75%,75%). Each disc occupies 31 percent of total canvas width and height, leaving generous completely transparent space between them.\nTop left: saturated mint turquoise candy. Top right: saturated watermelon coral candy. Bottom left: rich lavender purple candy. Bottom right: warm golden yellow candy. All four have the SAME perfectly round silhouette and front-facing orthographic camera, inflated lentil shape, smooth edible sugar glaze with luxurious broad soft specular reflection at upper left, subtle darker lower rim, clean softly lit center. Cute polished 3D casual game art, highly legible at 36 pixels diameter. Strong saturated midtones, restrained white highlight occupying under 15% of surface. Absolutely no faces, no symbols, no letters, no text, no wrappers, no sticks, no fruit, no sprinkles, no borders, no labels, no checkered backdrop, no ground plane. No cast shadows outside the discs. Only four isolated matching round candy objects. Preserve genuine alpha transparency.\n"

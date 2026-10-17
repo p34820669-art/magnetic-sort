@@ -1,13 +1,19 @@
-import { PuzzleSession, planMove, status } from './model.js?v=0.13.0';
-import { LEVELS, COLORS } from './levels.js?v=0.13.0';
-import { SortFeedback } from './feedback.js?v=0.13.0';
+import { PuzzleSession, planMove, status } from './model.js?v=0.17.0';
+import { LEVELS, COLORS } from './levels.js?v=0.17.0';
+import { SortFeedback } from './feedback.js?v=0.17.0';
+import { loadBest, rememberBest } from './best.js?v=0.17.0';
+import { loadRun, saveRun } from './resume.js?v=0.17.0';
 
-const ui = Object.fromEntries(['level-label', 'level-name', 'levels', 'tip',
+const ui = Object.fromEntries(['level-label', 'level-progress', 'level-name', 'levels', 'tip',
   'status-panel', 'next', 'message', 'undo', 'restart', 'sound', 'menu',
   'level-dialog', 'close-menu', 'help', 'help-dialog', 'close-help', 'dismiss-notice', 'motion', 'motion-note', 'victory', 'victory-title', 'victory-detail', 'candy-box'].map(id => [id, document.getElementById(id)]));
+for (const id of ['welcome', 'play', 'welcome-levels', 'welcome-settings', 'welcome-help', 'welcome-status', 'welcome-progress', 'go-home', 'menu-title']) ui[id] = document.getElementById(id);
 // Phaser 4.2.1 has no GameConfig.resolution: render a denser canvas, keep logical coordinates.
 const renderDensity = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
 const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
+const AUDIO_KEYS = ['pickup', 'complete', 'land', 'win', 'seal', 'unlock', 'undo'];
+// SFX group trim in dB; the retained stopper and victory keep their existing gain.
+const SFX_DB = { pickup: -1.5, complete: -2.5, land: 0, win: 0, seal: 0, unlock: -2, undo: -4 };
 const lessons = {
   gather: 'Нажми на △. Четыре одинаковых конфеты — готово!',
   partial: 'Собери △. Спрятанные конфеты пока останутся.',
@@ -17,7 +23,10 @@ const lessons = {
   challenge: 'Выбирай порядок цветов и собери всё поле.',
   lock: 'Собери четыре △ — откроется коралловый замок.',
   'lock-choice': 'Какой замок открыть первым: ○ или △?',
-  'lock-chain': 'Собирай цвет замка, чтобы открыть следующую банку.'
+  'lock-chain': 'Собирай цвет замка, чтобы открыть следующую банку.',
+  'branch-space': 'Сравни два первых цвета: какой оставит больше места?',
+  'hidden-key': 'Ключ ○ спрятан под другими конфетами.',
+  'three-paths': 'Попробуй найти самый короткий путь.'
 };
 function reasonText(move) {
   return move.reason === 'locked' ? `Собери четыре ${COLORS[move.color].symbol}, чтобы открыть эту банку.` : reasons[move.reason];
@@ -27,6 +36,19 @@ const reasons = {
   'no-space': 'Нет приёмника. Освободи место или отмени ход.',
   covered: 'Этот цвет спрятан. Сначала открой его другим сбором.'
 };
+function moveCount(moves) {
+  const ending = moves % 10 === 1 && moves % 100 !== 11 ? 'ход' : moves % 10 >= 2 && moves % 10 <= 4 && !(moves % 100 >= 12 && moves % 100 <= 14) ? 'хода' : 'ходов';
+  return `${moves} ${ending}`;
+}
+
+function drawCandyGlyph(graphics, color) {
+  if (color === 'A') graphics.strokeCircle(0, 0, 6);
+  if (color === 'B') graphics.strokeTriangle(0, -7, -7, 6, 7, 6);
+  if (color === 'C') graphics.strokeRect(-6, -6, 12, 12);
+  if (color === 'D') graphics.beginPath().moveTo(0, -8).lineTo(7, 0).lineTo(0, 8).lineTo(-7, 0).closePath().strokePath();
+  if (color === 'E') graphics.lineBetween(-7, 0, 7, 0).lineBetween(0, -7, 0, 7);
+  if (color === 'F') graphics.lineBetween(-7, -3, 7, -3).lineBetween(-7, 3, 7, 3);
+}
 
 function boardView() {
   const wide = matchMedia('(orientation: landscape) and (max-height: 500px) and (min-width: 600px)').matches;
@@ -58,18 +80,26 @@ class SortScene extends Phaser.Scene {
     this.seenLessons = new Set();
     try { this.seenLessons = new Set(JSON.parse(localStorage.getItem('magnetic-sort-lessons') || '[]')); } catch { /* Optional guidance history. */ }
     this.busy = false;
+    this.screen = 'home';
+    this.bestScores = loadBest();
+    this.savedRun = loadRun(LEVELS);
+    this.hasStarted = Boolean(this.savedRun) || LEVELS.some(level => this.bestScores[level.lesson] !== undefined);
+    this.actions = [];
     this.boardObjects = [];
     this.balls = new Map();
     this.jarViews = new Map();
     this.lockViews = new Map();
     this.pressed = null;
     this.previewMove = null;
-    this.audioPlays = { pickup: 0, complete: 0, land: 0, win: 0, seal: 0 };
+    this.recordedState = null;
+    this.audioPlays = Object.fromEntries(AUDIO_KEYS.map(key => [key, 0]));
+    this.audioEvents = [];
+    this.landVoice = 0;
   }
   preload() {
-    this.load.image('glass-jar', './assets/glass-jar.png?v=0.13.0');
-    for (const { texture } of Object.values(COLORS)) if (texture) this.load.image(texture, `./assets/${texture}.png?v=0.13.0`);
-    for (const key of ['pickup', 'complete', 'land', 'win', 'seal']) this.load.audio(key, `./assets/${key}.wav?v=0.13.0`);
+    this.load.image('glass-jar', './assets/glass-jar.png?v=0.13.2');
+    for (const { texture } of Object.values(COLORS)) if (texture) this.load.image(texture, `./assets/${texture}.png?v=0.13.2`);
+    for (const key of AUDIO_KEYS) this.load.audio(key, `./assets/${key}.wav?v=0.17.0`);
   }
   create() {
     // Preserve the illustrated rim and foot; give the clear body room for four candies.
@@ -85,11 +115,18 @@ class SortScene extends Phaser.Scene {
     this.setMotion(motion);
     ui.motion.addEventListener('change', () => this.setMotion(ui.motion.value));
     motionQuery.addEventListener('change', () => this.setMotion(this.motionPreference));
-    this.sfx = Object.fromEntries(['pickup', 'complete', 'land', 'win', 'seal'].map(key => {
+    const makeSound = key => {
       const sound = this.sound.add(key);
-      sound.on('play', () => { this.audioPlays[key]++; });
-      return [key, sound];
-    }));
+      sound.on('play', () => {
+        this.audioPlays[key]++;
+        this.audioEvents.push({ key, at: performance.now(), phase: this.feedback.phase, rate: sound.rate, volume: sound.volume });
+        if (this.audioEvents.length > 100) this.audioEvents.shift();
+      });
+      return sound;
+    };
+    this.sfx = Object.fromEntries(AUDIO_KEYS.map(key => [key, makeSound(key)]));
+    // Four bounded voices let every candy's glass tail finish in both motion modes.
+    this.landPool = [this.sfx.land, ...Array.from({ length: 3 }, () => makeSound('land'))];
     let muted = false;
     try { muted = localStorage.getItem('magnetic-sort-muted') === 'true'; } catch { /* Storage is optional. */ }
     this.setMuted(muted);
@@ -97,31 +134,37 @@ class SortScene extends Phaser.Scene {
     const closeMenu = () => {
       ui['level-dialog'].close();
       // The dialog's close event is queued; the visible board must be ready immediately.
-      this.input.enabled = !ui['help-dialog'].open;
+      this.input.enabled = this.screen === 'game' && !ui['help-dialog'].open;
     };
     for (let index = 0; index < LEVELS.length; index++) {
       const button = document.createElement('button');
-      button.textContent = `${index + 1}. ${LEVELS[index].name}`;
-      button.addEventListener('click', () => { this.openLevel(index); closeMenu(); });
+      const title = document.createElement('span'), record = document.createElement('span'), check = document.createElement('span');
+      title.className = 'level-title'; title.textContent = `${index + 1}. ${LEVELS[index].name}`;
+      record.className = 'level-record';
+      check.className = 'level-check'; check.textContent = '✓'; check.setAttribute('aria-hidden', 'true'); check.hidden = true;
+      button.append(title, record, check);
+      button.addEventListener('click', () => { this.showGame(false); this.openLevel(index); closeMenu(); });
       ui.levels.append(button);
     }
-    ui.menu.addEventListener('click', () => {
-      if (this.busy) return;
-      this.pressed = null;
-      this.clearPreview();
-      this.input.enabled = false;
-      ui['level-dialog'].showModal();
-    });
+    ui.menu.addEventListener('click', () => this.openMenu());
+    ui['welcome-levels'].addEventListener('click', () => this.openMenu('levels'));
+    ui['welcome-settings'].addEventListener('click', () => this.openMenu('settings'));
+    ui.play.addEventListener('click', () => this.showGame());
+    ui['go-home'].addEventListener('click', () => { closeMenu(); this.showHome(); });
     ui['close-menu'].addEventListener('click', closeMenu);
-    const syncInput = () => { this.input.enabled = !ui['level-dialog'].open && !ui['help-dialog'].open; };
+    const syncInput = () => { this.input.enabled = this.screen === 'game' && !ui['level-dialog'].open && !ui['help-dialog'].open; };
     ui['level-dialog'].addEventListener('close', syncInput);
-    ui.help.addEventListener('click', () => {
+    const openHelp = () => {
       if (this.busy) return;
       this.pressed = null;
       this.clearPreview();
       this.input.enabled = false;
+      ui.tip.hidden = this.screen === 'home';
+      ui['level-name'].textContent = this.screen === 'home' ? 'Как играть' : LEVELS[this.levelIndex].name;
       ui['help-dialog'].showModal();
-    });
+    };
+    ui.help.addEventListener('click', openHelp);
+    ui['welcome-help'].addEventListener('click', openHelp);
     ui['close-help'].addEventListener('click', () => { ui['help-dialog'].close(); syncInput(); });
     ui['help-dialog'].addEventListener('close', syncInput);
     ui['dismiss-notice'].addEventListener('click', () => this.hideNotice());
@@ -129,7 +172,7 @@ class SortScene extends Phaser.Scene {
     ui.restart.addEventListener('click', () => { closeMenu(); this.restart(); });
     ui.next.addEventListener('click', () => this.openLevel((this.levelIndex + 1) % LEVELS.length));
     this.input.keyboard.on('keydown', event => {
-      if (event.repeat || event.ctrlKey || event.metaKey || event.altKey || ui['level-dialog'].open || ui['help-dialog'].open) return;
+      if (this.screen !== 'game' || event.repeat || event.ctrlKey || event.metaKey || event.altKey || ui['level-dialog'].open || ui['help-dialog'].open) return;
       if (/^[1-6]$/.test(event.key)) this.choose(Number(event.key) - 1);
       if (event.code === 'KeyZ') this.undo();
       if (event.code === 'KeyR') this.restart();
@@ -147,7 +190,9 @@ class SortScene extends Phaser.Scene {
     this.scale.on('resize', () => {
       if (!this.busy) { this.pressed = null; this.drawBoard(); }
     });
-    this.openLevel(0);
+    this.openLevel(this.savedRun?.index ?? Math.max(0, LEVELS.findIndex(level => this.bestScores[level.lesson] === undefined)), this.savedRun);
+    this.savedRun = null;
+    this.showHome();
     // FIT must also react when DOM text or screen orientation changes the parent.
     this.resizeObserver = new ResizeObserver(() => this.fitBoard());
     this.resizeObserver.observe(document.getElementById('game'));
@@ -155,29 +200,93 @@ class SortScene extends Phaser.Scene {
     // Read-only diagnostics, available only to local QA. No game-state setters.
     if (new URLSearchParams(location.search).has('qa')) {
       window.__sortQA = { snapshot: () => ({
-        version: '0.13.0', state: structuredClone(this.session.state), busy: this.busy, level: this.levelIndex,
+        version: '0.17.0', screen: this.screen, state: structuredClone(this.session.state), busy: this.busy, level: this.levelIndex,
         inputEnabled: this.input.enabled,
         status: status(this.session.state), history: this.session.history.length,
         renderer: this.game.renderer.type, receivers: receivers(this.session.state),
         preview: this.previewMove ? { ...this.previewMove } : null,
         motion: { preference: this.motionPreference, effective: this.gentleMotion ? 'gentle' : 'full', systemReduced: motionQuery.matches },
-        feedback: { phase: this.feedback.phase, effects: this.feedback.effects.size, reactions: this.feedback.reactions.size, lastDuration: this.feedback.lastDuration },
+        feedback: { phase: this.feedback.phase, effects: this.feedback.effects.size, reactions: this.feedback.reactions.size, lastDuration: this.feedback.lastDuration,
+          undoVisuals: this.feedback.undoVisuals.size, lastUndoDuration: this.feedback.lastUndoDuration },
         camera: { x: this.cameras.main.scrollX, y: this.cameras.main.scrollY },
-        effects: [...this.feedback.effects].map(effect => ({ name: effect.name, x: effect.x, y: effect.y, alpha: effect.alpha, scaleX: effect.scaleX, scaleY: effect.scaleY, angle: effect.angle })),
+        effects: [...this.feedback.effects].map(effect => ({ name: effect.name, x: effect.x, y: effect.y, alpha: effect.alpha, scaleX: effect.scaleX, scaleY: effect.scaleY, angle: effect.angle,
+          depth: effect.depth, width: effect.name === 'rubber-lid' ? effect.getAt(0).displayWidth : undefined,
+          height: effect.name === 'rubber-lid' ? effect.getAt(0).displayHeight : undefined })),
         balls: [...this.balls].map(([id, ball]) => ({ id, x: ball.x, y: ball.y, scaleX: ball.scaleX, scaleY: ball.scaleY, alpha: ball.alpha,
           contact: { y: ball.getAt(0).y, scaleX: ball.getAt(0).scaleX, scaleY: ball.getAt(0).scaleY } })),
         jars: [...this.jarViews].map(([index, jar]) => ({ index, rotation: jar.rotation })),
         locks: [...this.lockViews].map(([index, lock]) => ({ index, x: lock.x, y: lock.y, alpha: lock.alpha, shackleY: lock.getByName('shackle').y })),
         audio: { muted: this.muted, engineMuted: this.sound.mute, plays: { ...this.audioPlays },
-          decoded: ['pickup', 'complete', 'land', 'win', 'seal'].every(key => this.cache.audio.exists(key)),
+          decoded: AUDIO_KEYS.every(key => this.cache.audio.exists(key)), events: [...this.audioEvents], landVoices: this.landPool.length,
           context: this.sound.context?.state ?? 'html5' },
         centers: this.layout.map(({ x, top, scale }) => ({ x, y: top + 88 * scale })),
         view: { ...this.view },
         presentation: { density: renderDensity, canvas: [this.game.canvas.width, this.game.canvas.height],
-          tubeScale: this.layout[0].scale, victoryVisible: !ui.victory.hidden }
+          tubeScale: this.layout[0].scale, victoryVisible: !ui.victory.hidden,
+          moveMarkers: this.boardObjects.filter(object => object.name === 'move-affordance' && object.visible).length }
       }) };
     }
     document.body.dataset.ready = 'true';
+    for (const id of ['play', 'welcome-levels', 'welcome-settings', 'welcome-help']) ui[id].disabled = false;
+    ui['welcome-status'].hidden = true;
+    ui.play.focus({ preventScroll: true });
+  }
+  openMenu(mode = 'all') {
+    if (this.busy) return;
+    this.pressed = null;
+    this.clearPreview();
+    this.input.enabled = false;
+    ui['level-dialog'].dataset.mode = mode;
+    ui['menu-title'].textContent = mode === 'settings' ? 'Настройки' : mode === 'levels' ? 'Уровни' : 'Магнитная сортировка';
+    ui.restart.hidden = this.screen === 'home' || mode !== 'all';
+    ui['go-home'].hidden = this.screen === 'home';
+    ui['level-dialog'].showModal();
+  }
+  showHome() {
+    if (this.busy) return;
+    this.screen = 'home';
+    if (this.hasStarted && status(this.session.state) === 'won') this.openLevel((this.levelIndex + 1) % LEVELS.length);
+    this.pressed = null;
+    this.clearPreview();
+    this.feedback.reset();
+    this.input.enabled = false;
+    document.body.dataset.screen = 'home';
+    const card = document.querySelector('.game-card');
+    card.inert = true;
+    card.setAttribute('aria-hidden', 'true');
+    ui.welcome.hidden = false;
+    ui.welcome.inert = false;
+    this.updateHomeProgress();
+    if (document.body.dataset.ready === 'true') ui.play.focus({ preventScroll: true });
+  }
+  showGame(showLesson = true) {
+    if (this.busy) return;
+    const firstStart = !this.hasStarted;
+    this.screen = 'game';
+    this.hasStarted = true;
+    document.body.dataset.screen = 'game';
+    ui.welcome.inert = true;
+    ui.welcome.hidden = true;
+    const card = document.querySelector('.game-card');
+    card.inert = false;
+    card.removeAttribute('aria-hidden');
+    this.input.enabled = !ui['level-dialog'].open && !ui['help-dialog'].open;
+    this.fitBoard();
+    const lesson = LEVELS[this.levelIndex].lesson;
+    if ((firstStart || !this.session.state.moves) && showLesson && !this.seenLessons.has(lesson)) this.say(lessons[lesson], 'coach');
+    ui.menu.focus({ preventScroll: true });
+    this.persistRun();
+  }
+  persistRun() {
+    if (!this.hasStarted || this.busy) return;
+    const won = status(this.session.state) === 'won';
+    const index = won ? (this.levelIndex + 1) % LEVELS.length : this.levelIndex;
+    saveRun(LEVELS[index], won ? [] : this.actions);
+  }
+  updateHomeProgress() {
+    const completed = LEVELS.filter(level => this.bestScores[level.lesson] !== undefined).length;
+    ui.play.querySelector('span').textContent = this.hasStarted ? 'Продолжить' : 'Играть';
+    ui['welcome-progress'].textContent = `Уровень ${this.levelIndex + 1} · пройдено ${completed}/${LEVELS.length}`;
   }
   setMuted(muted) {
     // Keep the user's preference separate from the gain node while audio is locked.
@@ -197,19 +306,26 @@ class SortScene extends Phaser.Scene {
     ui['motion-note'].textContent = this.gentleMotion ? 'Мягкие переходы, без полётов и искр.' : 'Полёты конфет, пружинящие посадки и искры.';
     try { localStorage.setItem('magnetic-sort-motion', this.motionPreference); } catch { /* Optional preference. */ }
   }
-  playSound(key, config) { if (!this.muted) this.sfx[key].play(config); }
-  openLevel(index) {
+  playSound(key, config = {}) {
+    if (this.muted) return;
+    const sound = key === 'land' ? this.landPool[this.landVoice++ % this.landPool.length] : this.sfx[key];
+    sound.play({ ...config, volume: (config.volume ?? 1) * 10 ** (SFX_DB[key] / 20) });
+  }
+  stopSounds() { for (const sound of new Set([...Object.values(this.sfx ?? {}), ...(this.landPool ?? [])])) sound.stop(); }
+  openLevel(index, restored = null) {
     if (this.busy) return;
     this.hideNotice();
     this.feedback.reset();
     this.levelIndex = index;
-    this.session = new PuzzleSession(LEVELS[index].tubes, LEVELS[index].locks);
+    this.recordedState = null;
+    this.session = restored?.session ?? new PuzzleSession(LEVELS[index].tubes, LEVELS[index].locks);
+    this.actions = restored ? [...restored.actions] : [];
     this.layout = tubeLayout(this.session.state.tubes.length, this.view);
     this.pressed = null;
     this.drawBoard();
     this.refresh();
     const lesson = LEVELS[index].lesson;
-    if (!this.seenLessons.has(lesson)) this.say(lessons[lesson], 'coach');
+    if (this.screen === 'game' && !this.seenLessons.has(lesson)) this.say(lessons[lesson], 'coach');
   }
   own(object) { this.boardObjects.push(object); return object; }
   text(x, y, value, size = 14, color = '#74677d') {
@@ -230,6 +346,7 @@ class SortScene extends Phaser.Scene {
     graphics.restore();
   }
   drawBoard() {
+    this.feedback.clearUndo();
     this.feedback.releasePress();
     this.feedback.clearReactions();
     this.markers.clear();
@@ -363,13 +480,11 @@ class SortScene extends Phaser.Scene {
     const candy = texture ? this.add.image(0, 0, texture).setDisplaySize(40, 40)
       : this.add.graphics().fillStyle(COLORS[color].fill).fillCircle(0, 0, 18);
     const ball = this.add.graphics();
-    ball.lineStyle(2.3, 0x392442, .86);
-    if (color === 'A') ball.strokeCircle(0, 0, 6);
-    if (color === 'B') ball.strokeTriangle(0, -7, -7, 6, 7, 6);
-    if (color === 'C') ball.strokeRect(-6, -6, 12, 12);
-    if (color === 'D') ball.beginPath().moveTo(0, -8).lineTo(7, 0).lineTo(0, 8).lineTo(-7, 0).closePath().strokePath();
-    if (color === 'E') ball.lineBetween(-7, 0, 7, 0).lineBetween(0, -7, 0, 7);
-    if (color === 'F') ball.lineBetween(-7, -3, 7, -3).lineBetween(-7, 3, 7, 3);
+    // A pale lower edge gives the symbols the same moulded finish as the candy and lid.
+    ball.save().translateCanvas(0, 1.25).lineStyle(3, 0xffffff, .68);
+    drawCandyGlyph(ball, color);
+    ball.restore().lineStyle(2.3, 0x392442, .9);
+    drawCandyGlyph(ball, color);
     // Unit root scale keeps the existing press, flight and landing tweens intact.
     const visual = this.add.container(0, 0, [shadow, candy, ball]).setScale(this.layout[0].scale * 1.125);
     return this.add.container(x, y, [visual]).setDepth(2);
@@ -415,7 +530,7 @@ class SortScene extends Phaser.Scene {
     this.previewMove = null;
   }
   preview(index) {
-    if (this.busy || status(this.session.state) !== 'playing') return;
+    if (this.screen !== 'game' || this.busy || status(this.session.state) !== 'playing') return;
     const move = planMove(this.session.state, index);
     this.clearPreview(false);
     if (!move.valid) { this.say(reasonText(move)); return; }
@@ -444,7 +559,7 @@ class SortScene extends Phaser.Scene {
   }
   delay(duration) { return new Promise(resolve => this.time.delayedCall(duration, resolve)); }
   async choose(index) {
-    if (this.busy || ui['level-dialog'].open || ui['help-dialog'].open || status(this.session.state) !== 'playing') return;
+    if (this.screen !== 'game' || this.busy || ui['level-dialog'].open || ui['help-dialog'].open || status(this.session.state) !== 'playing') return;
     if (index < 0 || index >= this.session.state.tubes.length) return;
     const planned = planMove(this.session.state, index);
     if (!planned.valid) { this.feedback.reject(index); this.say(reasonText(planned)); return; }
@@ -457,6 +572,7 @@ class SortScene extends Phaser.Scene {
     this.boardObjects.filter(object => object.name === 'move-affordance').forEach(object => object.setVisible(false));
     this.refresh();
     const move = this.session.move(index);
+    this.actions.push(index);
     const moving = await this.feedback.gather(move);
     if (move.dispatch) await this.feedback.collect(move, moving);
     else this.feedback.rim(move.destination, COLORS[move.color].fill, true);
@@ -468,13 +584,17 @@ class SortScene extends Phaser.Scene {
     if (status(this.session.state) === 'won') this.feedback.celebrate();
   }
   undo() {
-    if (this.busy || !this.session.undo()) return;
+    if (this.screen !== 'game' || this.busy || !this.session.history.length) return;
+    const reversed = planMove(this.session.history.at(-1), this.actions.at(-1));
+    if (!this.session.undo()) return;
+    this.actions.pop();
     this.feedback.reset();
     this.hideNotice();
     this.pressed = null;
     this.drawBoard(); this.refresh();
+    if (reversed.valid) this.feedback.reverse(reversed);
   }
-  restart() { if (!this.busy) this.openLevel(this.levelIndex); }
+  restart() { if (this.screen === 'game' && !this.busy) this.openLevel(this.levelIndex); }
   tutorialText() {
     const level = LEVELS[this.levelIndex], state = this.session.state;
     if (status(state) === 'won') return 'Все цвета собраны. Можно продолжить или отменить последний ход.';
@@ -488,6 +608,26 @@ class SortScene extends Phaser.Scene {
     if (level.lesson === 'space') return 'Ищи ход, который откроет одноцветный приёмник. Если упёрся в тупик, вернись на ход назад.';
     return level.tip;
   }
+  updateProgress(colors, cleared) {
+    const progress = ui['level-progress'];
+    const palette = colors.join('');
+    if (progress.dataset.palette !== palette) {
+      progress.replaceChildren(...colors.map(color => {
+        const candy = document.createElement('span');
+        candy.className = 'progress-candy';
+        candy.textContent = COLORS[color].symbol;
+        candy.style.setProperty('--candy-fill', COLORS[color].css);
+        candy.style.setProperty('--candy-ink', COLORS[color].ink ?? '#392442');
+        candy.setAttribute('aria-hidden', 'true');
+        return candy;
+      }));
+      progress.dataset.palette = palette;
+    }
+    colors.forEach((color, index) => progress.children[index].classList.toggle('collected', cleared.includes(color)));
+    progress.setAttribute('aria-valuemax', String(colors.length));
+    progress.setAttribute('aria-valuenow', String(cleared.length));
+    progress.setAttribute('aria-valuetext', `${cleared.length} из ${colors.length}`);
+  }
   refresh() {
     const state = this.session.state, result = status(state);
     const won = result === 'won' && !this.busy;
@@ -496,6 +636,7 @@ class SortScene extends Phaser.Scene {
     document.getElementById('game').setAttribute('aria-hidden', String(won));
     const colors = [...new Set(this.session.initial.tubes.flat())].sort();
     ui['level-label'].textContent = `${this.levelIndex + 1} / ${LEVELS.length}`;
+    this.updateProgress(colors, state.cleared);
     ui['level-name'].textContent = LEVELS[this.levelIndex].name;
     ui.tip.textContent = this.tutorialText();
     ui.undo.disabled = this.busy || this.session.history.length === 0;
@@ -507,18 +648,33 @@ class SortScene extends Phaser.Scene {
     [...ui.levels.children].forEach((button, index) => {
       if (index === this.levelIndex) button.setAttribute('aria-current', 'step');
       else button.removeAttribute('aria-current');
+      const best = this.bestScores[LEVELS[index].lesson];
+      button.querySelector('.level-record').textContent = best === undefined ? '' : `Рекорд: ${moveCount(best)}`;
+      button.querySelector('.level-check').hidden = best === undefined;
+      if (best === undefined) button.removeAttribute('aria-label');
+      else button.setAttribute('aria-label', `${index + 1}. ${LEVELS[index].name}. Пройден. Рекорд: ${moveCount(best)}`);
     });
     ui.next.hidden = this.busy || result !== 'won';
     if (result === 'won' && !this.busy) {
       const finished = this.levelIndex === LEVELS.length - 1;
       ui.next.textContent = finished ? 'Ещё раз →' : 'Дальше →';
       ui['victory-title'].textContent = 'Готово!';
-      const moves = state.moves, ending = moves % 10 === 1 && moves % 100 !== 11 ? 'ход' : moves % 10 >= 2 && moves % 10 <= 4 && !(moves % 100 >= 12 && moves % 100 <= 14) ? 'хода' : 'ходов';
-      ui['victory-detail'].textContent = `За ${moves} ${ending}`;
+      const moves = state.moves;
+      if (this.recordedState !== state) {
+        const result = rememberBest(this.bestScores, LEVELS[this.levelIndex].lesson, moves);
+        this.bestScores = result.scores;
+        this.newRecord = result.improved;
+        this.recordedState = state;
+        const button = ui.levels.children[this.levelIndex];
+        button.querySelector('.level-record').textContent = `Рекорд: ${moveCount(this.bestScores[LEVELS[this.levelIndex].lesson])}`;
+        button.querySelector('.level-check').hidden = false;
+        button.setAttribute('aria-label', `${this.levelIndex + 1}. ${LEVELS[this.levelIndex].name}. Пройден. Рекорд: ${moveCount(this.bestScores[LEVELS[this.levelIndex].lesson])}`);
+      }
+      ui['victory-detail'].textContent = this.newRecord ? `За ${moveCount(moves)} · новый рекорд!` : `За ${moveCount(moves)} · лучший: ${this.bestScores[LEVELS[this.levelIndex].lesson]}`;
       ui['candy-box'].replaceChildren(...colors.flatMap(color => Array.from({ length: 4 }, () => {
         const cell = document.createElement('span'), candy = document.createElement('img'), symbol = document.createElement('span');
         cell.className = 'gift-candy';
-        candy.src = `./assets/${COLORS[color].texture}.png?v=0.13.0`;
+        candy.src = `./assets/${COLORS[color].texture}.png?v=0.13.2`;
         candy.alt = '';
         candy.width = candy.height = 96;
         symbol.textContent = COLORS[color].symbol;
@@ -531,6 +687,8 @@ class SortScene extends Phaser.Scene {
       this.say('Нет места. Отмени ход и открой приёмник.', 'stuck');
     }
     this.fitBoard();
+    this.updateHomeProgress();
+    this.persistRun();
   }
 }
 
@@ -538,5 +696,5 @@ new Phaser.Game({
   type: Phaser.AUTO, parent: 'game', width: boardView().width * renderDensity, height: boardView().height * renderDensity, transparent: true,
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   scene: SortScene, input: { activePointers: 2 }, disableContextMenu: true,
-  title: 'Magnetic Sort', version: '0.13.0'
+  title: 'Magnetic Sort', version: '0.17.0'
 });
